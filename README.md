@@ -1,4 +1,2 @@
-# Welcome to your organization's demo respository
-This code repository (or "repo") is designed to demonstrate the best GitHub has to offer with the least amount of noise.
-
-The repo includes an `index.html` file (so it can render a web page), two GitHub Actions workflows, and a CSS stylesheet dependency.
+# Ciao belle padelle
+La repo va aggiustata perché ci sono robe a caso di default ma comunque per ora ho fatto la struttura base, Adri dovrebbe aggiungere la sua parte
