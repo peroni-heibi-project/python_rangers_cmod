@@ -285,6 +285,7 @@ Poi li mette nel foglio `BibliographicEntity`:
 Ricordi che `"id"` nel JSON è già una lista? Quindi iteriamo su quella lista e aggiungiamo una riga per ogni id. Tutti condividono lo stesso `internal_id` — così SQLite sa che appartengono allo stesso articolo.
 
 **Quarta cosa — prende gli autori**
+
 `for auth_str in record.get("author", []):
     auth_str = auth_str.strip()
     if not auth_str:
@@ -300,9 +301,10 @@ Ricordi che `"id"` nel JSON è già una lista? Quindi iteriamo su quella lista e
     })
     author_counter += 1`
 
-Anche "author" nel JSON è già una lista, quindi iteriamo direttamente. Ogni stringa ha formato "Cognome, Nome" — usiamo split(",", maxsplit=1) per spezzarla in due parti. Il maxsplit=1 è importante: senza di esso un cognome composto come "La Mela, Matti" verrebbe spezzato in tre pezzi invece di due.
+Anche "author" nel JSON è già una lista, quindi iteriamo direttamente. Ogni stringa ha formato `"Cognome, Nome" — usiamo split(",", maxsplit=1)` per spezzarla in due parti. Il maxsplit=1 è importante: senza di esso un cognome composto come "La Mela, Matti" verrebbe spezzato in tre pezzi invece di due.
 
-*Quinta cosa — prende la venue*
+**Quinta cosa — prende la venue**
+
 `venue = record.get("venue", None)
 if venue:
     rows_venue.append({
