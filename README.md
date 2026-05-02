@@ -242,7 +242,12 @@ Adesso entriamo nel `for` — è il cuore del metodo.
 Questo significa: *"per ogni articolo nella lista, fai quello che segue"*. Quindi tutto quello che è dentro il `for` si ripete 10.708 volte, una per ogni articolo.
 
 ---
-
+**IL CICLO FOR**
+1)Crea l'id interno (internal_id = "be-0", ecc.)
+2)Prende i campi semplici (title, pub_date) → va in rows_entity
+3)Prende gli id → va in rows_entity_id
+4)Prende gli autori → va in rows_author ← questa è quella che ti ho appena spiegato
+5)Prende la venue → va in rows_venue
 **Prima cosa dentro il for — crea l'id interno**
 
 `internal_id = "be-" + str(entity_counter)
@@ -279,3 +284,56 @@ Poi li mette nel foglio `BibliographicEntity`:
 
 Ricordi che `"id"` nel JSON è già una lista? Quindi iteriamo su quella lista e aggiungiamo una riga per ogni id. Tutti condividono lo stesso `internal_id` — così SQLite sa che appartengono allo stesso articolo.
 
+Certo! Ecco la lista completa e omogenea:
+
+Prima cosa dentro il for — crea l'id interno
+pythoninternal_id = "be-" + str(entity_counter)
+entity_counter += 1
+Al primo giro internal_id = "be-0", al secondo "be-1", e così via. È il codice fiscale dell'articolo.
+
+Seconda cosa — prende i campi semplici
+pythontitle    = record.get("title", "")
+pub_date = record.get("pub_date", "")
+
+rows_entity.append({
+    "internalId": internal_id,
+    "title":      title,
+    "pub_date":   pub_date
+})
+.get("title", "") significa: "prendimi il valore di title, e se non esiste mettimi una stringa vuota". Poi aggiunge la riga al foglio BibliographicEntity.
+
+Terza cosa — prende gli id
+pythonfor single_id in record.get("id", []):
+    rows_entity_id.append({
+        "entityId": internal_id,
+        "id":       single_id
+    })
+"id" nel JSON è già una lista, quindi iteriamo direttamente. Ogni id diventa una riga separata in EntityId, tutte con lo stesso internal_id così SQLite sa che appartengono allo stesso articolo.
+
+Quarta cosa — prende gli autori
+pythonfor auth_str in record.get("author", []):
+    auth_str = auth_str.strip()
+    if not auth_str:
+        continue
+    parts  = auth_str.split(",", maxsplit=1)
+    family = parts[0].strip() if len(parts) > 0 else ""
+    given  = parts[1].strip() if len(parts) > 1 else ""
+    rows_author.append({
+        "authorId":   "author-" + str(author_counter),
+        "givenName":  given,
+        "familyName": family,
+        "entityId":   internal_id
+    })
+    author_counter += 1
+Anche "author" nel JSON è già una lista, quindi iteriamo direttamente. Ogni stringa ha formato "Cognome, Nome" — usiamo split(",", maxsplit=1) per spezzarla in due parti. Il maxsplit=1 è importante: senza di esso un cognome composto come "La Mela, Matti" verrebbe spezzato in tre pezzi invece di due.
+
+Quinta cosa — prende la venue
+pythonvenue = record.get("venue", None)
+if venue:
+    rows_venue.append({
+        "venueId":  "venue-" + str(venue_counter),
+        "title":    venue.strip(),
+        "entityId": internal_id
+    })
+    venue_counter += 1
+Qui non c'è un for perché ogni articolo ha una sola venue. Il controllo if venue salta i record dove la venue è None o stringa vuota — nel tuo JSON 1.916 record non hanno venue.
