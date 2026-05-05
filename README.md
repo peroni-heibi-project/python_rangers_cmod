@@ -13,7 +13,6 @@ Il **livello 2** sono gli handler — classi che parlano con i database. Si divi
 Il **livello 3** è il query engine — prende i DataFrame dagli handler e li trasforma in oggetti Python del livello 1. È il "traduttore" finale.
 
 ALCUNE COSE CHE STO STUDIANDO:
-Io sono responsabile di tutto ciò che riguarda il JSON e SQLite:
 
 - `BibliographicEntityUploadHandler` → legge il JSON, scrive in SQLite
 - `BibliographicEntityQueryHandler` → legge da SQLite, restituisce DataFrame
