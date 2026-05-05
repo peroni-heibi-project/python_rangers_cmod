@@ -1,3 +1,6 @@
+import pandas as pd
+from SPARQLWrapper import SPARQLWrapper, POST, JSON
+
 # BASE CLASS: THE HANDLER
 
 class Handler:
