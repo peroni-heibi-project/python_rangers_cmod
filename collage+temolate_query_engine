@@ -1,0 +1,537 @@
+import pandas as pd
+from sparqlite import SPARQLClient
+from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
+from rdflib import Graph, URIRef, Literal, RDFS
+import isodate
+from json import load
+from sqlite3 import connect
+
+
+#CIAO!
+
+#java -server -Xmx1g -jar blazegraph.jar
+
+
+
+class Handler:
+    def __init__(self, dbPathOrUrl:str):
+        self.dbPathOrUrl = dbPathOrUrl
+
+    def getDbPathOrUrl(self):
+        return self.dbPathOrUrl
+    
+    def setDbPathOrUrl(self, input): #DA CAPIRE
+        if input[len(input)-3:] == ".db":
+            self.dbPathOrUrl = input
+            return True
+        else:
+            return False
+
+
+class UploadHandler(Handler):
+    def __init__(self, dbPathOrUrl:str):
+        super().__init__(dbPathOrUrl)
+
+    def pushDatatoDb(self, path): 
+        db = self.getDbPathOrUrl()
+        if len(db) == 0:
+            return False
+        def push_csv_to_blaze():
+            file = pd.read_csv(path, keep_default_na=None, 
+                                dtype= {
+                                    "oci" : "string",
+                                    "citing" : "string",
+                                    "cited" : "string", 
+                                    "creation" : "string", 
+                                    "timespan" : "string",
+                                    "journal_sc" : "string",
+                                    "author_sc" : "string"
+                                })
+
+            bib_entry = Graph()
+            base_oci = URIRef("https://oci.opencitations.net/virtual/ci/")
+            citing = URIRef("http://purl.org/spar/cito/hasCitingEntity")
+            cited = URIRef("http://purl.org/spar/cito/hasCitedEntity")
+            creation = URIRef("http://purl.org/spar/cito/hasCitationCreationDate")
+            timespan = URIRef("http://purl.org/spar/cito/hasCitationTimeSpan")
+            journal_sc = URIRef("http://purl.org/spar/cito/JournalSelfCitation")
+            author_sc = URIRef("http://purl.org/spar/cito/AuthorSelfCitation")
+
+
+            for idx, row in file.iterrows():
+                if row["timespan"] and row["creation"] and row["timespan"]: #controlla se ci sono tutti gli elementi obbligatori. per quanto riguarda l'id, lo crea lui from sratch.
+                    subject = base_oci + row["oci"]
+                    bib_entry.add((subject, RDFS.label, Literal(row["oci"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                    bib_entry.add((subject, citing, Literal(row["citing"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                    bib_entry.add((subject, cited, Literal(row["cited"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                    bib_entry.add((subject, creation, Literal(row["creation"])))
+                    bib_entry.add((subject, timespan, Literal(row["timespan"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                    bib_entry.add((subject, journal_sc, Literal(row["journal_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                    bib_entry.add((subject, author_sc, Literal(row["author_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+            
+            store = SPARQLUpdateStore()
+            endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+            store.open((endpoint, endpoint))
+            for triple in bib_entry:
+                    store.add(triple)
+            store.close()
+
+        def push_json_to_db():
+            with open(path, "r", encoding="utf-8") as f:
+                data = load(f)
+
+            title = list()
+            pub_date = list()
+            venue = list()
+            biben_fk = list()
+
+
+            for dic in data:
+                author_list = list()
+                id_list = list()
+                a_fk = list()
+                i_fk = list()
+
+                if dic["title"] != "":
+                    title.append(dic["title"])
+                else:
+                    title.append(None)
+
+                if dic["pub_date"] != "":
+                    pub_date.append(dic["pub_date"])
+                else:
+                    pub_date.append(None)
+                
+                venue.append(dic["venue"])
+
+                int_id = ""
+                for i in dic["id"]:
+                    id_list.append(i)
+                    if "omid" in i:
+                        int_id = i
+                        biben_fk.append(int_id)                
+                    i_fk.append(biben_fk[len(biben_fk)-1])
+                
+                if dic["author"]:   
+                    for a in dic["author"]:
+                        author_list.append(a)
+                        a_fk.append(i_fk[0])
+
+                id_db = pd.DataFrame({"biben_internalId" : pd.Series(i_fk), 
+                                      "id" : pd.Series(id_list)})
+                with connect(db) as con:
+                    id_db.to_sql("Id", con, if_exists="append", index=False)
+                
+                                    
+                author_db = pd.DataFrame({"name" : pd.Series(author_list),
+                                          "biben_id" : pd.Series(a_fk)})
+                with connect(db) as con:
+                    author_db.to_sql("Author", con, if_exists="append", index=False)
+                                               
+        
+            df = pd.DataFrame({"internal_id" : pd.Series(biben_fk),  
+                               "title" : pd.Series(title),  
+                               "pub_date" : pd.Series(pub_date), "venue" : pd.Series(venue) })
+            
+            with connect(db) as con:
+                df.to_sql("BibliographicEntity", con, if_exists="replace", index=False)
+
+        if path[len(path)-3:] == "csv":
+            push_csv_to_blaze()
+        elif path[len(path)-4:] == "json":
+            push_json_to_db()
+        return True
+
+
+#piccolo test
+#pipi = UploadHandler("")
+#pipi.setDbPathOrUrl("database/biben1.db")
+#print(pipi.setDbPathOrUrl("data/db.db"))
+#print(UploadHandler.pushDatatoDb(pipi, "data/biben-cut.json") )
+
+
+
+class QueryHandler(Handler):
+    def __init__(self, dbPathOrUrl:str):
+        super().__init__(dbPathOrUrl)
+        
+    def getById(id):
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        query = f"""
+         prefix oci: <https://oci.opencitations.net/virtual/ci/>
+         prefix cito: <http://purl.org/spar/cito/>
+         SELECT ?oci ?creation ?citing ?cited ?creation ?timespan
+        WHERE 
+            {{oci:{id} rdfs:label ?oci .
+            oci:{id} cito:hasCitationCreationDate ?creation .
+            oci:{id} cito:hasCitationTimeSpan ?timespan
+            oci:{id} cito:hasCitingEntity ?citing
+            oci:{id} cito:hasCitedEntity ?cited
+            oci:{id} cito:hasCitationCreationDate}}"""
+        
+        with SPARQLClient(endpoint) as client:
+            result = client.query(query)
+        if len(result) > 0: #se esiste un elemento con quell'id in blazegraph:
+            variables = result["head"]["vars"]
+            rows = list()
+            for binding in result["results"]["bindings"]:
+                row = dict()
+                for var in variables:
+                    if var in binding:
+                        row[var] = binding[var]["value"]
+                    else:
+                        row[var] = ""
+                rows.append(row)
+                return pd.DataFrame(rows)
+        else: #se non esiste, vediamo se c'è nel db:
+            c = Handler.getDbPathorUrl()
+            with connect(c) as con:
+                query = pd.read_sql(f"""SELECT author, title, pub_date, venue FROM * 
+                WHERE id = {id} """, con)
+                if len(query) > 0:
+                    return query
+                else: 
+                    return "no items found."
+#print(QueryHandler.getById("06102330980-0680100982"))            
+
+class BibliographicEntityQueryHandler(QueryHandler):
+    def __init__(self, dbPathOrUrl:str):
+        super().__init__(dbPathOrUrl)
+
+    
+class CitationQueryHandler(QueryHandler):
+    def __init__(self, dbPathOrUrl:str):
+        super().__init__(dbPathOrUrl)
+
+
+    def getAllCitations():
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        query = f""" 
+        PREFIX cito:  <http://purl.org/spar/cito/>
+        
+        SELECT ?oci ?creation ?citing ?cited ?timespan
+        WHERE {{ 
+            ?s cito:hasCitationCreationDate ?creation .
+            ?s rdfs:label ?oci .
+            ?s cito:hasCitingEntity ?citing
+            ?s cito:hasCitedEntity ?cited
+            ?s cito:hasCitationTimeSpan ?timespan}}
+        """
+        with SPARQLClient(endpoint) as client:
+            result = client.query(query)
+        variables = result["head"]["vars"]
+        rows = list()
+        for binding in result["results"]["bindings"]:
+            row = dict()
+            for var in variables:
+                if var in binding:
+                    row[var] = binding[var]["value"]
+                else:
+                    row[var] = ""
+            rows.append(row)
+        return pd.DataFrame(rows)
+    
+    def getAuthorSelfCitations():
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        query = """ PREFIX cito:  <http://purl.org/spar/cito/>
+                
+            SELECT ?oci ?creation ?citing ?cited ?timespan
+            WHERE {{ 
+                ?s cito:hasCitationCreationDate ?creation .
+                ?s rdfs:label ?oci .
+                ?s cito:hasCitingEntity ?citing
+                ?s cito:hasCitedEntity ?cited
+                ?s cito:hasCitationTimeSpan ?timespan
+            ?s cito:AuthorSelfCitation  ?author_sc . 
+            ?s cito:AuthorSelfCitation> 'yes' .
+            ?s rdfs:label ?label}}"""
+        
+        with SPARQLClient(endpoint) as client:
+            result = client.query(query)
+            variables = result["head"]["vars"]
+            rows = list()
+            for binding in result["results"]["bindings"]:
+                row = dict()
+                for var in variables:
+                    if var in binding:
+                        row[var] = binding[var]["value"]
+                    else:
+                        row[var] = ""
+                rows.append(row)
+        return pd.DataFrame(rows)
+    
+    def getAllJournalSelfCitations():
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        query = """ PREFIX cito:  <http://purl.org/spar/cito/>
+                
+            SELECT ?oci ?creation ?citing ?cited ?timespan
+            WHERE {{ 
+                ?s cito:hasCitationCreationDate ?creation .
+                ?s rdfs:label ?oci .
+                ?s cito:hasCitingEntity ?citing
+                ?s cito:hasCitedEntity ?cited
+                ?s cito:hasCitationTimeSpan ?timespan
+            ?s cito:JournalSelfCitation  ?journal_sc . 
+            ?s cito:JournalSelfCitation> 'yes' .
+            ?s rdfs:label ?label}}"""
+        with SPARQLClient(endpoint) as client:
+            result = client.query(query)
+            variables = result["head"]["vars"]
+            rows = list()
+            for binding in result["results"]["bindings"]:
+                row = dict()
+                for var in variables:
+                    if var in binding:
+                        row[var] = binding[var]["value"]
+                    else:
+                        row[var] = ""
+                rows.append(row)
+        return pd.DataFrame(rows)
+    
+    def getCitationsWithinTimeSpan(beginning, end):
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        query = f""" 
+        PREFIX cito:  <http://purl.org/spar/cito/>
+        
+        SELECT ?oci ?creation ?citing ?cited ?timespan
+        WHERE {{ 
+            ?s cito:hasCitationCreationDate ?creation .
+            ?s rdfs:label ?oci .
+            ?s cito:hasCitingEntity ?citing
+            ?s cito:hasCitedEntity ?cited
+            ?s cito:hasCitationTimeSpan ?timespan}}
+        """
+        with SPARQLClient(endpoint) as client:
+            response = client.query(query)
+            variables = response["head"]["vars"]
+            rows = list()
+            for binding in response["results"]["bindings"]:
+                row = dict()
+                for var in variables:
+                    if var in binding:
+                        row[var] = binding[var]["value"]
+                    else:
+                        row[var] = ""
+                rows.append(row)
+            result = pd.DataFrame(rows)
+
+            def timespan_to_days(timespan):
+                days = 0
+                d = isodate.parse_duration(timespan)
+                if hasattr(d, "days"):
+                    days += d.days
+                if hasattr(d, "months"):
+                    days += (d.months * 30)
+                if hasattr(d, "years"):
+                    days += (d.years * 365)
+                return days
+            
+            if len(beginning) != 0 and len(end) != 0:
+                min = timespan_to_days(beginning)
+                max = timespan_to_days(end)
+                for idx, row in result.iterrows():
+                    t = timespan_to_days(row["timespan"])
+                    if not(min <= t <= max):
+                        result.drop(idx, axis=0, inplace=True)
+                result.reset_index(drop=True, inplace=True)
+            elif len(beginning) == 0:
+                max = timespan_to_days(end)
+                for idx, row in result.iterrows():
+                    t = timespan_to_days(row["timespan"])
+                    if not(t <= max):
+                        result.drop(idx, axis=0, inplace=True)
+                result.reset_index(drop=True, inplace=True)
+            elif len(end) == 0:
+                min = timespan_to_days(beginning)
+                for idx, row in result.iterrows():
+                    t = timespan_to_days(row["timespan"])
+                    if not(min <= t ):
+                        result.drop(idx, axis=0, inplace=True)
+                result.reset_index(drop=True, inplace=True)                
+            return result
+
+    def getCitationsWithinDate(min, max): 
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        query = f"""
+            PREFIX cito:  <http://purl.org/spar/cito/>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+            SELECT ?oci ?creation ?citing ?cited ?timespan
+            WHERE {{ 
+            ?s cito:hasCitationCreationDate ?creation .
+            ?s rdfs:label ?oci .
+            ?s cito:hasCitingEntity ?citing
+            ?s cito:hasCitedEntity ?cited
+            ?s cito:hasCitationTimeSpan ?timespan}}
+            """
+       
+        with SPARQLClient(endpoint) as client:
+            result = client.query(query)
+            variables = result["head"]["vars"]
+            rows = list()
+            for binding in result["results"]["bindings"]:
+                row = dict()
+                for var in variables:
+                    if var in binding:
+                        row[var] = binding[var]["value"]
+                    else:
+                        row[var] = ""
+                rows.append(row)
+            
+            data = pd.DataFrame(rows) 
+
+            def normalize_string(d):
+                if len(d) == 4:
+                    d += "-01-01"
+                elif len(d) == 7:
+                    d += "-01"
+                return d
+
+            for idx,row in data.iterrows():
+                date = normalize_string(row["creation"])
+                d = isodate.parse_date(date)
+
+                if min:
+                    min_date = isodate.parse_date(min)
+                    if min_date > d:
+                        data.drop(idx, axis = 0, inplace= True)
+                if max: 
+                    max_date = isodate.parse_date(max)
+                    if max_date < d:
+                        data.drop(idx, axis = 0, inplace= True)
+            return data
+
+                
+                
+
+
+        
+#print(CitationQueryHandler.getCitationsWithinDate("2024-07", "2025-02"))    
+#print(CitationQueryHandler.getCitationsWithinTimeSpan("P0Y", ""))
+
+#print(CitationQueryHandler.getAllCitations())
+#1print(CitationQueryHandler.getAuthorSelfCitations())
+#print(CitationQueryHandler.getAllJournalSelfCitations())
+
+class IdentifiableEntity():
+    def __init__(self, id:str):
+        self.id = id
+    
+class BibliographicEntity(IdentifiableEntity):
+    def __init__(self, id, title, author, publication_date, venue):
+        self.title = title
+        self.author = author
+        self.publication_date = publication_date
+        self.venue = venue
+        super().__init__(id)
+
+
+class Citation(IdentifiableEntity):
+    def __init__(self, id, creation:str,timespan:str ):
+        self.id = id
+        self.creation = creation
+        self.timespan = timespan
+        super().__init__(id)
+    
+class JournalSelfCitation(Citation):
+    def __init__(self, id, creation, timespan):
+        super().__init__(id, creation, timespan)
+
+class AuthorSelfCitation(Citation):
+    def __init__(self, id, creation, timespan):
+        super().__init__(id, creation, timespan)
+
+
+
+
+
+class BasicQueryEngine():
+    def __init__(self, citationQuery:list, bibliographicEntityQuery:list):
+        self.citationQuery = citationQuery 
+        self.bibliographicEntityQuery = bibliographicEntityQuery
+    
+    def cleanCitationHandlers(self) -> bool:
+        self.citationQuery = []
+        return True
+    
+    def cleanBibliographicEntityHandlers(self) -> bool:
+        self.bibliographicEntityQuery = []
+        return True
+    
+    def addCitationHandler(self, input:CitationQueryHandler) -> bool: 
+        if type(input) == CitationQueryHandler:
+            self.citationQuery.append(input)
+            return True
+        else:
+            return False
+
+    def addBibliographicEntityHandler(self, input:BibliographicEntityQueryHandler) -> bool:
+        if type(input) == BibliographicEntityQueryHandler:
+            self.bibliographicEntityQuery.append(input)
+            return True
+        else:
+            return False
+    
+    def getEntityById(id):
+      #primo passo: trovare il fottuto id.
+      prefix_id = "https://oci.opencitations.net/virtual/ci/"
+      df = QueryHandler.getById(id).iloc[0]
+      if df:
+        df_class = Citation(id= prefix_id + df["oci"], creation=df["creation"], timespan=df["timespan"]) 
+        return df_class.id, df_class.creation , df_class.timespan
+      else: 
+          return None
+    
+    def getAllCitations() -> list:
+        pass
+
+    def getAllAuthorSelfCitations() -> list:
+        pass
+
+    def getAllJournalSelfCitations() -> list:
+        pass
+
+    def getCitationsWithinTimespan(min_time:str, max_time:str) -> list:
+        pass
+
+    def getCitationsWithinDate(start_date:str, end_date:str) -> list:
+        pass
+
+    def getAllBibliographicEntities() -> list:
+        pass
+
+    def getBibliographicEntitesWithTitle(title:str) -> list:
+        pass
+
+    def getBibliographicEntitiesWithAuthor(author:str) -> list:
+        pass
+
+    def getBibliographicEntitesWithinDate(start_date:str, end_date:str) -> list:
+        pass
+
+    def getBibliographicEntitiesWithVenue(venue:str) -> list:
+        pass
+    
+#print(BasicQueryEngine.getEntityById("06102330980-0680100982"))
+
+class FullQueryEngine(BasicQueryEngine):
+    def __init__(self, citationQuery:str, bibliographicEntityQuery:str):
+        self.citationQuery = citationQuery 
+        self.bibliographicEntityQuery = bibliographicEntityQuery
+        super().__init__(citationQuery, bibliographicEntityQuery)
+
+    def getAuthorSelfCitationsByName(author_name:str) -> list:
+        pass
+
+    def getJournalSelfCitationsByName(journal_name:str) -> list:
+        pass
+
+    def getCitationsOfBibEntityByTitle(bib_entity_tutle:str, min_date:str, max_date:str) -> list:
+        pass
+
+    def getReferencesOfBibEntityByTitleWithinTimespan(bib_entity_title:str, min_timespan:str, max_timespan:str) -> list:
+        pass
+
+    
+    
+    
