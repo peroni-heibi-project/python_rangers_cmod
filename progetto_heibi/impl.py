@@ -1,4 +1,5 @@
 import pandas as pd
+from SPARQLWrapper import SPARQLWrapper, POST
 from sparqlite import SPARQLClient
 from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 from rdflib import Graph, URIRef, Literal, RDFS
@@ -49,49 +50,85 @@ class CitationUploadHandler(UploadHandler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
     
+class CitationUploadHandler(UploadHandler):
+    def __init__(self, dbPathOrUrl:str = ""):
+        super().__init__(dbPathOrUrl)
+    
     def pushDataToDb(self, path):
-        db = self.getDbPathOrUrl()
-        if len(db) == 0:
-            return False
-        file = pd.read_csv(path, keep_default_na=None, 
-                                dtype= {
-                                    "oci" : "string",
-                                    "citing" : "string",
-                                    "cited" : "string", 
-                                    "creation" : "string", 
-                                    "timespan" : "string",
-                                    "journal_sc" : "string",
-                                    "author_sc" : "string"
-                                })
+        df = pd.read_csv(path, keep_default_na=None)
 
-        bib_entry = Graph()
-        base_oci = URIRef("https://oci.opencitations.net/virtual/ci/")
-        citing = URIRef("http://purl.org/spar/cito/hasCitingEntity")
-        cited = URIRef("http://purl.org/spar/cito/hasCitedEntity")
-        creation = URIRef("http://purl.org/spar/cito/hasCitationCreationDate")
-        timespan = URIRef("http://purl.org/spar/cito/hasCitationTimeSpan")
-        journal_sc = URIRef("http://purl.org/spar/cito/JournalSelfCitation")
-        author_sc = URIRef("http://purl.org/spar/cito/AuthorSelfCitation")
+        sparql = SPARQLWrapper(self.dbPathOrUrl)
+        sparql.setMethod("POST")
 
+        for _, row in df.iterrows():
+            citation_uri = f"https://opencitations.net/citation/{row['oci']}"
+            query = f"""
+            PREFIX cito: <http://purl.org/spar/cito/>
+            PREFIX datacite: <http://purl.org/spar/datacite/>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-        for idx, row in file.iterrows():
-            if row["timespan"] and row["creation"] and row["timespan"]: #controlla se ci sono tutti gli elementi obbligatori. per quanto riguarda l'id, lo crea lui from sratch.
-                subject = base_oci + row["oci"]
-                bib_entry.add((subject, RDFS.label, Literal(row["oci"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                bib_entry.add((subject, citing, Literal(row["citing"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                bib_entry.add((subject, cited, Literal(row["cited"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                bib_entry.add((subject, creation, Literal(row["creation"])))
-                bib_entry.add((subject, timespan, Literal(row["timespan"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                bib_entry.add((subject, journal_sc, Literal(row["journal_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                bib_entry.add((subject, author_sc, Literal(row["author_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-        
-        store = SPARQLUpdateStore()
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
-        store.open((endpoint, endpoint))
-        for triple in bib_entry:
-                store.add(triple)
-        store.close()
+            INSERT DATA {{
+                <{citation_uri}> a cito:Citation ;
+                    cito:hasCitingEntity <https://opencitations.net/entity/{row['citing']}> ;
+                    cito:hasCitedEntity <https://opencitations.net/entity/{row['cited']}> ;
+                    cito:hasCreationDate "{row['creation']}"^^xsd:string ;
+                    cito:hasTimespan "{row['timespan']}"^^xsd:string ;
+                    cito:isJournalSelfCitation "{row['journal_sc']}"^^xsd:string ;
+                    cito:isAuthorSelfCitation "{row['author_sc']}"^^xsd:string . 
+            }}
+            """
+
+            sparql.setQuery(query)
+            sparql.query()
         return True
+        
+# Questo sopra è il CitationUploadHandler fatto da Alice. 
+# Non cancello l'altro che c'è qua sotto (il vecchio) ma lo metto in commento, per vedere se il mio non crashi all'interno del complesso generale ;)
+# nel caso in cui non andasse il primo o lo correggiamo o teniamo il secondo che funzionava ma molto più lento!
+
+#    def pushDatatoDb(self, path):
+#        db = self.getDbPathorUrl()
+#        if len(db) == 0:
+#            return False
+#        file = pd.read_csv(path, keep_default_na=None, 
+#                                dtype= {
+#                                    "oci" : "string",
+#                                    "citing" : "string",
+#                                    "cited" : "string", 
+#                                    "creation" : "string", 
+#                                    "timespan" : "string",
+#                                    "journal_sc" : "string",
+#                                    "author_sc" : "string"
+#                                })
+#
+#        bib_entry = Graph()
+#        base_oci = URIRef("https://oci.opencitations.net/virtual/ci/")
+#        citing = URIRef("http://purl.org/spar/cito/hasCitingEntity")
+#        cited = URIRef("http://purl.org/spar/cito/hasCitedEntity")
+#        creation = URIRef("http://purl.org/spar/cito/hasCitationCreationDate")
+#        timespan = URIRef("http://purl.org/spar/cito/hasCitationTimeSpan")
+#        journal_sc = URIRef("http://purl.org/spar/cito/JournalSelfCitation")
+#        author_sc = URIRef("http://purl.org/spar/cito/AuthorSelfCitation")
+#
+#
+#        for idx, row in file.iterrows():
+#            if row["timespan"] and row["creation"] and row["timespan"]: #controlla se ci sono tutti gli elementi obbligatori. per quanto riguarda l'id, lo crea lui from sratch.
+#                subject = base_oci + row["oci"]
+#                bib_entry.add((subject, RDFS.label, Literal(row["oci"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+#                bib_entry.add((subject, citing, Literal(row["citing"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+#                bib_entry.add((subject, cited, Literal(row["cited"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+#                bib_entry.add((subject, creation, Literal(row["creation"])))
+#                bib_entry.add((subject, timespan, Literal(row["timespan"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+#                bib_entry.add((subject, journal_sc, Literal(row["journal_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+#                bib_entry.add((subject, author_sc, Literal(row["author_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+#        
+#        store = SPARQLUpdateStore()
+#        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+#        store.open((endpoint, endpoint))
+#        for triple in bib_entry:
+#                store.add(triple)
+#        store.close()
+#        return True
 
     
 class BibliographicEntityUploadHandler(UploadHandler):
