@@ -42,11 +42,18 @@ class UploadHandler(Handler):
         super().__init__(dbPathOrUrl)
 
     def pushDatatoDb(self, path): 
+        pass
+
+    
+class CitationUploadHandler(UploadHandler):
+    def __init__(self, dbPathOrUrl:str = ""):
+        super().__init__(dbPathOrUrl)
+    
+    def pushDataToDb(self, path):
         db = self.getDbPathOrUrl()
         if len(db) == 0:
             return False
-        def push_csv_to_blaze():
-            file = pd.read_csv(path, keep_default_na=None, 
+        file = pd.read_csv(path, keep_default_na=None, 
                                 dtype= {
                                     "oci" : "string",
                                     "citing" : "string",
@@ -57,103 +64,35 @@ class UploadHandler(Handler):
                                     "author_sc" : "string"
                                 })
 
-            bib_entry = Graph()
-            base_oci = URIRef("https://oci.opencitations.net/virtual/ci/")
-            citing = URIRef("http://purl.org/spar/cito/hasCitingEntity")
-            cited = URIRef("http://purl.org/spar/cito/hasCitedEntity")
-            creation = URIRef("http://purl.org/spar/cito/hasCitationCreationDate")
-            timespan = URIRef("http://purl.org/spar/cito/hasCitationTimeSpan")
-            journal_sc = URIRef("http://purl.org/spar/cito/JournalSelfCitation")
-            author_sc = URIRef("http://purl.org/spar/cito/AuthorSelfCitation")
+        bib_entry = Graph()
+        base_oci = URIRef("https://oci.opencitations.net/virtual/ci/")
+        citing = URIRef("http://purl.org/spar/cito/hasCitingEntity")
+        cited = URIRef("http://purl.org/spar/cito/hasCitedEntity")
+        creation = URIRef("http://purl.org/spar/cito/hasCitationCreationDate")
+        timespan = URIRef("http://purl.org/spar/cito/hasCitationTimeSpan")
+        journal_sc = URIRef("http://purl.org/spar/cito/JournalSelfCitation")
+        author_sc = URIRef("http://purl.org/spar/cito/AuthorSelfCitation")
 
 
-            for idx, row in file.iterrows():
-                if row["timespan"] and row["creation"] and row["timespan"]: #controlla se ci sono tutti gli elementi obbligatori. per quanto riguarda l'id, lo crea lui from sratch.
-                    subject = base_oci + row["oci"]
-                    bib_entry.add((subject, RDFS.label, Literal(row["oci"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                    bib_entry.add((subject, citing, Literal(row["citing"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                    bib_entry.add((subject, cited, Literal(row["cited"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                    bib_entry.add((subject, creation, Literal(row["creation"])))
-                    bib_entry.add((subject, timespan, Literal(row["timespan"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                    bib_entry.add((subject, journal_sc, Literal(row["journal_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-                    bib_entry.add((subject, author_sc, Literal(row["author_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-            
-            store = SPARQLUpdateStore()
-            endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
-            store.open((endpoint, endpoint))
-            for triple in bib_entry:
-                    store.add(triple)
-            store.close()
-
-        def push_json_to_db():
-            with open(path, "r", encoding="utf-8") as f:
-                data = load(f)
-
-            title = list()
-            pub_date = list()
-            venue = list()
-            biben_fk = list()
-
-
-            for dic in data:
-                author_list = list()
-                id_list = list()
-                a_fk = list()
-                i_fk = list()
-
-                if dic["title"] != "":
-                    title.append(dic["title"])
-                else:
-                    title.append(None)
-
-                if dic["pub_date"] != "":
-                    pub_date.append(dic["pub_date"])
-                else:
-                    pub_date.append(None)
-                
-                venue.append(dic["venue"])
-
-                int_id = ""
-                for i in dic["id"]:
-                    id_list.append(i)
-                    if "omid" in i:
-                        int_id = i
-                        biben_fk.append(int_id)                
-                    i_fk.append(biben_fk[len(biben_fk)-1])
-                
-                if dic["author"]:   
-                    for a in dic["author"]:
-                        author_list.append(a)
-                        a_fk.append(i_fk[0])
-
-                id_db = pd.DataFrame({"biben_internalId" : pd.Series(i_fk), 
-                                      "id" : pd.Series(id_list)})
-                with connect(db) as con:
-                    id_db.to_sql("Id", con, if_exists="append", index=False)
-                
-                                    
-                author_db = pd.DataFrame({"name" : pd.Series(author_list),
-                                          "biben_id" : pd.Series(a_fk)})
-                with connect(db) as con:
-                    author_db.to_sql("Author", con, if_exists="append", index=False)
-                                               
+        for idx, row in file.iterrows():
+            if row["timespan"] and row["creation"] and row["timespan"]: #controlla se ci sono tutti gli elementi obbligatori. per quanto riguarda l'id, lo crea lui from sratch.
+                subject = base_oci + row["oci"]
+                bib_entry.add((subject, RDFS.label, Literal(row["oci"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                bib_entry.add((subject, citing, Literal(row["citing"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                bib_entry.add((subject, cited, Literal(row["cited"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                bib_entry.add((subject, creation, Literal(row["creation"])))
+                bib_entry.add((subject, timespan, Literal(row["timespan"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                bib_entry.add((subject, journal_sc, Literal(row["journal_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
+                bib_entry.add((subject, author_sc, Literal(row["author_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
         
-            df = pd.DataFrame({"internal_id" : pd.Series(biben_fk),  
-                               "title" : pd.Series(title),  
-                               "pub_date" : pd.Series(pub_date), "venue" : pd.Series(venue) })
-            
-            with connect(db) as con:
-                df.to_sql("BibliographicEntity", con, if_exists="replace", index=False)
-
-        if path[len(path)-3:] == "csv":
-            push_csv_to_blaze()
-        elif path[len(path)-4:] == "json":
-            push_json_to_db()
+        store = SPARQLUpdateStore()
+        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+        store.open((endpoint, endpoint))
+        for triple in bib_entry:
+                store.add(triple)
+        store.close()
         return True
-    
-class CitationUploadHandler(UploadHandler):
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+
     
 class BibliographicEntityUploadHandler(UploadHandler):
     """
@@ -244,6 +183,7 @@ class BibliographicEntityUploadHandler(UploadHandler):
                 venue_counter += 1
 
         # Convertiamo in DataFrame pandas
+
         df_entity    = pd.DataFrame(rows_entity)
         df_entity_id = pd.DataFrame(rows_entity_id)
         df_author    = pd.DataFrame(rows_author)
@@ -282,45 +222,53 @@ class QueryHandler(Handler):
         super().__init__(dbPathOrUrl)
         
     def getById(self, id):
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
-        query = f"""
-         prefix oci: <https://oci.opencitations.net/virtual/ci/>
-         prefix cito: <http://purl.org/spar/cito/>
-         SELECT ?oci ?citing ?cited ?creation ?timespan
-        WHERE 
-            {{?s rdfs:label '{id}' .
-            ?s cito:hasCitationCreationDate ?creation .
-            ?s cito:hasCitationTimeSpan ?timespan .
-            ?s cito:hasCitingEntity ?citing .
-            ?s cito:hasCitedEntity ?cited }}"""
-        
-        with SPARQLClient(endpoint) as client:
-            result = client.query(query)
-        if len(result) > 0: #se esiste un elemento con quell'id in blazegraph:
-            variables = result["head"]["vars"]
-            rows = list()
-            for binding in result["results"]["bindings"]:
-                row = dict()
-                for var in variables:
-                    if var in binding:
-                        row[var] = binding[var]["value"]
-                    else:
-                        row[var] = ""
-                rows.append(row)
-                df = pd.DataFrame(rows)
-                df["oci"] = id
-                return df
+        result = pd.DataFrame()
+        if (("omid" in id) or ("doi" in id) or ("openalex" in id) or ("isbn" in id)):
+            with connect(self.dbPathOrUrl) as con:
+                query = f"""
+                SELECT be.internalId, be.title, be.pub_date,
+                    ei.id AS identifier
+                FROM BibliographicEntity AS be
+                JOIN EntityId AS ei ON be.internalId = ei.entityId
+                WHERE ei.id = {id}
+                """
+                df = pd.read_sql(query, con)  
+                if len(df) == 0:
+                    result = df  
+        else:
+            endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
+            query = f"""
+            prefix oci: <https://oci.opencitations.net/virtual/ci/>
+            prefix cito: <http://purl.org/spar/cito/>
+            SELECT ?oci ?citing ?cited ?creation ?timespan
+            WHERE 
+                {{?s rdfs:label '{id}' .
+                ?s cito:hasCitationCreationDate ?creation .
+                ?s cito:hasCitationTimeSpan ?timespan .
+                ?s cito:hasCitingEntity ?citing .
+                ?s cito:hasCitedEntity ?cited }}"""
             
-        else: #se non esiste, vediamo se c'è nel db:
-            c = Handler.getDbPathorUrl()
-            with connect(c) as con:
-                query = pd.read_sql(f"""SELECT author, title, pub_date, venue FROM * 
-                WHERE id = {id} """, con)
-                if len(query) > 0:
-                    return query
-                else: 
-                    return "no items found."
-#print(QueryHandler.getById("06102330980-0680100982"))            
+            with SPARQLClient(endpoint) as client:
+                res = client.query(query)
+                variables = res["head"]["vars"]
+                rows = list()
+                for binding in res["results"]["bindings"]:
+                    row = dict()
+                    for var in variables:
+                        if var in binding:
+                            row[var] = binding[var]["value"]
+                        else:
+                            row[var] = ""
+                    rows.append(row)                   
+                df = pd.DataFrame(rows)
+                if len(df) > 0:
+                    result = df
+                    result["oci"] = id
+            return result 
+            
+    
+pipi = QueryHandler
+print(QueryHandler.getById(pipi, "lala"))            
 
 class BibliographicEntityQueryHandler(QueryHandler):
     #"""
@@ -332,19 +280,6 @@ class BibliographicEntityQueryHandler(QueryHandler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
 
-    #def getById(self, id):
-        # JOIN tra EntityId e BibliographicEntity per trovare l'entità
-        # con quell'identificatore. "?" è parametro sicuro (evita SQL injection).
-        with connect(self.dbPathOrUrl) as con:
-            query = """
-                SELECT be.internalId, be.title, be.pub_date,
-                       ei.id AS identifier
-                FROM BibliographicEntity AS be
-                JOIN EntityId AS ei ON be.internalId = ei.entityId
-                WHERE ei.id = ?
-            """
-            df = pd.read_sql(query, con, params=(id,))
-        return df
 
     def getAllBibliographicEntities(self):
         # LEFT JOIN perché alcune entità potrebbero non avere autori o venue
@@ -443,14 +378,14 @@ class CitationQueryHandler(QueryHandler):
     def getAllCitations(self):
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f""" 
-        PREFIX cito:  <http://purl.org/spar/cito/>
+        PREFIX cito:<http://purl.org/spar/cito/>
         
         SELECT ?oci ?creation ?citing ?cited ?timespan
         WHERE {{ 
             ?s cito:hasCitationCreationDate ?creation .
             ?s rdfs:label ?oci .
-            ?s cito:hasCitingEntity ?citing
-            ?s cito:hasCitedEntity ?cited
+            ?s cito:hasCitingEntity ?citing . 
+            ?s cito:hasCitedEntity ?cited . 
             ?s cito:hasCitationTimeSpan ?timespan}}
         """
         with SPARQLClient(endpoint) as client:
@@ -465,7 +400,11 @@ class CitationQueryHandler(QueryHandler):
                 else:
                     row[var] = ""
             rows.append(row)
-        return pd.DataFrame(rows)
+            result = pd.DataFrame(rows)
+            if len(result) > 0:
+                return result
+            else:
+                return None
     
     def getAllAuthorSelfCitations(self):
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
@@ -475,11 +414,11 @@ class CitationQueryHandler(QueryHandler):
             WHERE {{ 
                 ?s cito:hasCitationCreationDate ?creation .
                 ?s rdfs:label ?oci .
-                ?s cito:hasCitingEntity ?citing
-                ?s cito:hasCitedEntity ?cited
-                ?s cito:hasCitationTimeSpan ?timespan
+                ?s cito:hasCitingEntity ?citing . 
+                ?s cito:hasCitedEntity ?cited . 
+                ?s cito:hasCitationTimeSpan ?timespan . 
             ?s cito:AuthorSelfCitation  ?author_sc . 
-            ?s cito:AuthorSelfCitation> 'yes' .
+            ?s cito:AuthorSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
         
         with SPARQLClient(endpoint) as client:
@@ -504,11 +443,11 @@ class CitationQueryHandler(QueryHandler):
             WHERE {{ 
                 ?s cito:hasCitationCreationDate ?creation .
                 ?s rdfs:label ?oci .
-                ?s cito:hasCitingEntity ?citing
-                ?s cito:hasCitedEntity ?cited
-                ?s cito:hasCitationTimeSpan ?timespan
+                ?s cito:hasCitingEntity ?citing . 
+                ?s cito:hasCitedEntity ?cited . 
+                ?s cito:hasCitationTimeSpan ?timespan . 
             ?s cito:JournalSelfCitation  ?journal_sc . 
-            ?s cito:JournalSelfCitation> 'yes' .
+            ?s cito:JournalSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
         with SPARQLClient(endpoint) as client:
             result = client.query(query)
@@ -533,8 +472,8 @@ class CitationQueryHandler(QueryHandler):
         WHERE {{ 
             ?s cito:hasCitationCreationDate ?creation .
             ?s rdfs:label ?oci .
-            ?s cito:hasCitingEntity ?citing
-            ?s cito:hasCitedEntity ?cited
+            ?s cito:hasCitingEntity ?citing . 
+            ?s cito:hasCitedEntity ?cited . 
             ?s cito:hasCitationTimeSpan ?timespan}}
         """
         with SPARQLClient(endpoint) as client:
@@ -596,8 +535,8 @@ class CitationQueryHandler(QueryHandler):
             WHERE {{ 
             ?s cito:hasCitationCreationDate ?creation .
             ?s rdfs:label ?oci .
-            ?s cito:hasCitingEntity ?citing
-            ?s cito:hasCitedEntity ?cited
+            ?s cito:hasCitingEntity ?citing . 
+            ?s cito:hasCitedEntity ?cited . 
             ?s cito:hasCitationTimeSpan ?timespan}}
             """
        
@@ -712,7 +651,7 @@ class BasicQueryEngine():
       #primo passo: trovare il fottuto id.
       prefix_id = "https://oci.opencitations.net/virtual/ci/"
       df = QueryHandler.getById(id).iloc[0]
-      if df:
+      if len(df) == 0:
         df_class = Citation(id= prefix_id + df["oci"], creation=df["creation"], timespan=df["timespan"]) 
         return df_class.id, df_class.creation , df_class.timespan
       else: 
