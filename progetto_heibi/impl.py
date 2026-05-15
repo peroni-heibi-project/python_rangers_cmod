@@ -42,13 +42,10 @@ class UploadHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
 
-    def pushDatatoDb(self, path): 
+    def pushDataToDb(self, path): 
         pass
 
-    
-class CitationUploadHandler(UploadHandler):
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+#Alice - qua sotto ho modificato cosine, cancellato il richiamo della classe che era stato fatto due volte, ho corretto anche un altro pushDatatoDb in pushDataToDb    
     
 class CitationUploadHandler(UploadHandler):
     def __init__(self, dbPathOrUrl:str = ""):
@@ -66,6 +63,7 @@ class CitationUploadHandler(UploadHandler):
             PREFIX cito: <http://purl.org/spar/cito/>
             PREFIX datacite: <http://purl.org/spar/datacite/>
             PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
             INSERT DATA {{
                 <{citation_uri}> a cito:Citation ;
@@ -86,7 +84,7 @@ class CitationUploadHandler(UploadHandler):
 # Non cancello l'altro che c'è qua sotto (il vecchio) ma lo metto in commento, per vedere se il mio non crashi all'interno del complesso generale ;)
 # nel caso in cui non andasse il primo o lo correggiamo o teniamo il secondo che funzionava ma molto più lento!
 
-#    def pushDatatoDb(self, path):
+#    def pushDataToDb(self, path):
 #        db = self.getDbPathorUrl()
 #        if len(db) == 0:
 #            return False
