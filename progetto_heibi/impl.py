@@ -79,178 +79,44 @@ class CitationUploadHandler(UploadHandler):
             sparql.setQuery(query)
             sparql.query()
         return True
-        
-# Questo sopra è il CitationUploadHandler fatto da Alice. 
-# Non cancello l'altro che c'è qua sotto (il vecchio) ma lo metto in commento, per vedere se il mio non crashi all'interno del complesso generale ;)
-# nel caso in cui non andasse il primo o lo correggiamo o teniamo il secondo che funzionava ma molto più lento!
-
-#    def pushDataToDb(self, path):
-#        db = self.getDbPathorUrl()
-#        if len(db) == 0:
-#            return False
-#        file = pd.read_csv(path, keep_default_na=None, 
-#                                dtype= {
-#                                    "oci" : "string",
-#                                    "citing" : "string",
-#                                    "cited" : "string", 
-#                                    "creation" : "string", 
-#                                    "timespan" : "string",
-#                                    "journal_sc" : "string",
-#                                    "author_sc" : "string"
-#                                })
-#
-#        bib_entry = Graph()
-#        base_oci = URIRef("https://oci.opencitations.net/virtual/ci/")
-#        citing = URIRef("http://purl.org/spar/cito/hasCitingEntity")
-#        cited = URIRef("http://purl.org/spar/cito/hasCitedEntity")
-#        creation = URIRef("http://purl.org/spar/cito/hasCitationCreationDate")
-#        timespan = URIRef("http://purl.org/spar/cito/hasCitationTimeSpan")
-#        journal_sc = URIRef("http://purl.org/spar/cito/JournalSelfCitation")
-#        author_sc = URIRef("http://purl.org/spar/cito/AuthorSelfCitation")
-#
-#
-#        for idx, row in file.iterrows():
-#            if row["timespan"] and row["creation"] and row["timespan"]: #controlla se ci sono tutti gli elementi obbligatori. per quanto riguarda l'id, lo crea lui from sratch.
-#                subject = base_oci + row["oci"]
-#                bib_entry.add((subject, RDFS.label, Literal(row["oci"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-#                bib_entry.add((subject, citing, Literal(row["citing"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-#                bib_entry.add((subject, cited, Literal(row["cited"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-#                bib_entry.add((subject, creation, Literal(row["creation"])))
-#                bib_entry.add((subject, timespan, Literal(row["timespan"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-#                bib_entry.add((subject, journal_sc, Literal(row["journal_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-#                bib_entry.add((subject, author_sc, Literal(row["author_sc"], datatype=URIRef("http://www.w3.org/2001/XMLSchema#string"))))
-#        
-#        store = SPARQLUpdateStore()
-#        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
-#        store.open((endpoint, endpoint))
-#        for triple in bib_entry:
-#                store.add(triple)
-#        store.close()
-#        return True
-
     
 class BibliographicEntityUploadHandler(UploadHandler):
-    #"""
-    #Legge il file dh_metadata.json e popola un database SQLite.
-
-    #Struttura del JSON (verificata sul file reale, 10.708 record):
-    #  "id":       lista di stringhe → ["omid:br/...", "doi:...", ...]
-    #  "author":   lista di stringhe → ["Cognome, Nome", ...]
-    #  "title":    stringa           → può essere ""
-    #  "pub_date": stringa           → può essere "", es. "2022-10"
-    #  "venue":    stringa o null    → solo titolo, nessun id separato
-
-    #Tabelle create nel database SQLite:
-    #  BibliographicEntity  → una riga per ogni record del JSON
-    #  EntityId             → una riga per ogni identificatore di ogni entità
-    #  Author               → una riga per ogni autore di ogni entità
-    #  Venue                → una riga per ogni venue non nulla
-    #"""
 
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
 
     def pushDataToDb(self, path) -> bool:
-
-        # Leggiamo il file JSON con il pattern 'with open' del professore
         with open(path, "r", encoding="utf-8") as f:
             data = load(f)   # lista di dizionari
-
-        # Liste di dizionari temporanee, una per ogni tabella.
-        # Alla fine le convertiamo in DataFrame e le carichiamo con to_sql().
+            
         rows_entity    = list()
-        rows_entity_id = list()
-        rows_author    = list()
-        rows_venue     = list()
-
-        # Contatori per gli id interni univoci (es. "be-0", "author-0", "venue-0")
-        entity_counter = 0
-        author_counter = 0
-        venue_counter  = 0
-
-        for record in data:
-
-            internal_id = "be-" + str(entity_counter)
-            entity_counter += 1
-
-            # Campi semplici: .get() con "" di default evita KeyError
-            title    = record.get("title", "")
-            pub_date = record.get("pub_date", "")
-
+        print(data)
+        for dic in data:
+            internal_id = ""
+            title    = dic.get("title", "") 
+            pub_date = dic.get("pub_date", "") 
+            for item in dic["id"]:
+                if "omid" in item:
+                    internal_id += item
+            entity_id = "; ".join(dic["id"])
+            author ="; ".join(dic["author"]) if len(dic["author"]) > 0 else ""
+            venue = dic["venue"] if dic["venue"] else ""
+            
             rows_entity.append({
                 "internalId": internal_id,
-                "title":      title,
-                "pub_date":   pub_date
+                "title": title,
+                "author": author,
+                "pub_date": pub_date,
+                "venue" : venue,
+                "id" : entity_id
             })
 
-            # "id" è già una lista: nessun parsing necessario
-            for single_id in record.get("id", []):
-                rows_entity_id.append({
-                    "entityId": internal_id,
-                    "id":       single_id
-                })
+        df = pd.DataFrame(rows_entity)
 
-            # "author" è già una lista: ogni stringa ha formato "Cognome, Nome".
-            # maxsplit=1 gestisce cognomi composti come "La Mela, Matti"
-            for auth_str in record.get("author", []):
-                auth_str = auth_str.strip()
-                if not auth_str:
-                    continue
-                parts  = auth_str.split(",", maxsplit=1)
-                family = parts[0].strip() if len(parts) > 0 else ""
-                given  = parts[1].strip() if len(parts) > 1 else ""
-                rows_author.append({
-                    "authorId":   "author-" + str(author_counter),
-                    "givenName":  given,
-                    "familyName": family,
-                    "entityId":   internal_id
-                })
-                author_counter += 1
-
-            # "venue" è una stringa o None: saltiamo None e stringhe vuote
-            venue = record.get("venue", None)
-            if venue:
-                rows_venue.append({
-                    "venueId":  "venue-" + str(venue_counter),
-                    "title":    venue.strip(),
-                    "entityId": internal_id
-                })
-                venue_counter += 1
-
-        # Convertiamo in DataFrame pandas
-
-        df_entity    = pd.DataFrame(rows_entity)
-        df_entity_id = pd.DataFrame(rows_entity_id)
-        df_author    = pd.DataFrame(rows_author)
-        df_venue     = pd.DataFrame(rows_venue)
-
-        # Scriviamo nel database SQLite.
-        # if_exists="append" → aggiunge senza cancellare i dati già presenti.
-        # index=False → non scrive la colonna indice di pandas.
         with connect(self.dbPathOrUrl) as con:
-            if not df_entity.empty:
-                df_entity.to_sql("BibliographicEntity", con,
-                                 if_exists="append", index=False)
-            if not df_entity_id.empty:
-                df_entity_id.to_sql("EntityId", con,
-                                    if_exists="append", index=False)
-            if not df_author.empty:
-                df_author.to_sql("Author", con,
-                                 if_exists="append", index=False)
-            if not df_venue.empty:
-                df_venue.to_sql("Venue", con,
+            df.to_sql("BibliographicEntity", con,
                                 if_exists="append", index=False)
-
         return True
-
-
-#piccolo test
-#pipi = UploadHandler("")
-#pipi.setDbPathOrUrl("database/biben1.db")
-#print(pipi.setDbPathOrUrl("data/db.db"))
-#print(UploadHandler.pushDatatoDb(pipi, "data/biben-cut.json") )
-
-
 
 class QueryHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
@@ -262,12 +128,11 @@ class QueryHandler(Handler):
             with connect(self.dbPathOrUrl) as con:
                 query = f"""
                 SELECT be.internalId, be.title, be.pub_date,
-                    ei.id AS identifier
+                    ei.id
                 FROM BibliographicEntity AS be
-                JOIN EntityId AS ei ON be.internalId = ei.entityId
-                WHERE ei.id = {id}
+                WHERE ei.id = ?
                 """
-                df = pd.read_sql(query, con)  
+                df = pd.read_sql(query, con, params=(id,))  
                 if len(df) == 0:
                     result = df  
         else:
@@ -317,17 +182,14 @@ class BibliographicEntityQueryHandler(QueryHandler):
 
 
     def getAllBibliographicEntities(self) -> pd.DataFrame:
-        # LEFT JOIN perché alcune entità potrebbero non avere autori o venue
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT be.internalId, be.title, be.pub_date,
-                       ei.id AS identifier,
-                       a.givenName, a.familyName,
-                       v.title AS venueTitle
-                FROM BibliographicEntity AS be
-                LEFT JOIN EntityId AS ei ON be.internalId = ei.entityId
-                LEFT JOIN Author   AS a  ON be.internalId = a.entityId
-                LEFT JOIN Venue    AS v  ON be.internalId = v.entityId
+                SELECT 
+                internalId, title, 
+                author, pub_date,
+                venue, id
+                       
+                FROM BibliographicEntity
             """
             df = pd.read_sql(query, con)
         return df
@@ -336,11 +198,10 @@ class BibliographicEntityQueryHandler(QueryHandler):
         # LIKE con % cerca la stringa come sottostringa del titolo
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT be.internalId, be.title, be.pub_date,
-                       ei.id AS identifier
-                FROM BibliographicEntity AS be
-                LEFT JOIN EntityId AS ei ON be.internalId = ei.entityId
-                WHERE be.title LIKE ?
+                SELECT internalId, title, pub_date, author,
+                       id, venue
+                FROM BibliographicEntity 
+                WHERE title LIKE ?
             """
             df = pd.read_sql(query, con, params=("%" + title + "%",))
         return df
@@ -349,17 +210,13 @@ class BibliographicEntityQueryHandler(QueryHandler):
         # DISTINCT evita duplicati se il nome matcha sia givenName che familyName
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT DISTINCT be.internalId, be.title, be.pub_date,
-                       ei.id AS identifier,
-                       a.givenName, a.familyName
-                FROM BibliographicEntity AS be
-                JOIN      Author    AS a  ON be.internalId = a.entityId
-                LEFT JOIN EntityId  AS ei ON be.internalId = ei.entityId
-                WHERE a.givenName  LIKE ?
-                   OR a.familyName LIKE ?
+                SELECT internalId, title, pub_date, author,
+                       id, venue
+                FROM BibliographicEntity 
+
+                WHERE author like ?
             """
-            pattern = "%" + name + "%"
-            df = pd.read_sql(query, con, params=(pattern, pattern))
+            df = pd.read_sql(query, con, params=("%" + name + "%",))
         return df
 
     def getBibliographicEntitiesWithinPublicationDate(self, start=None, end=None) -> pd.DataFrame:
@@ -367,19 +224,18 @@ class BibliographicEntityQueryHandler(QueryHandler):
         conditions = list()
         params     = list()
         if start is not None:
-            conditions.append("be.pub_date >= ?")
+            conditions.append("pub_date >= ?")
             params.append(start)
         if end is not None:
-            conditions.append("be.pub_date <= ?")
+            conditions.append("pub_date <= ?")
             params.append(end)
         where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         with connect(self.dbPathOrUrl) as con:
             query = f"""
-                SELECT be.internalId, be.title, be.pub_date,
-                       ei.id AS identifier
-                FROM BibliographicEntity AS be
-                LEFT JOIN EntityId AS ei ON be.internalId = ei.entityId
+                SELECT internalId, title, pub_date, author, venue,
+                       id 
+                FROM BibliographicEntity 
                 {where_clause}
             """
             df = pd.read_sql(query, con, params=params)
@@ -388,13 +244,12 @@ class BibliographicEntityQueryHandler(QueryHandler):
     def getBibliographicEntitiesWithVenue(self, venue_name) -> pd.DataFrame:
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT DISTINCT be.internalId, be.title, be.pub_date,
-                       ei.id AS identifier,
-                       v.title AS venueTitle
-                FROM BibliographicEntity AS be
-                JOIN      Venue     AS v  ON be.internalId = v.entityId
-                LEFT JOIN EntityId  AS ei ON be.internalId = ei.entityId
-                WHERE v.title LIKE ?
+                SELECT internalId, title, pub_date, author,
+                       id, venue
+
+                FROM BibliographicEntity 
+
+                WHERE venue LIKE ?
             """
             df = pd.read_sql(query, con, params=("%" + venue_name + "%",))
         return df
@@ -611,17 +466,6 @@ class CitationQueryHandler(QueryHandler):
                         data.drop(idx, axis = 0, inplace= True)
             return data
 
-                
-                
-
-
-        
-#print(CitationQueryHandler.getCitationsWithinDate("2024-07", "2025-02"))    
-#print(CitationQueryHandler.getCitationsWithinTimeSpan("P0Y", ""))
-
-#print(CitationQueryHandler.getAllCitations())
-#print(CitationQueryHandler.getAuthorSelfCitations())
-#print(CitationQueryHandler.getAllJournalSelfCitations())
 
 class IdentifiableEntity():
     def __init__(self, id):
@@ -684,47 +528,35 @@ class AuthorSelfCitation(Citation):
         super().__init__(id, creation, timespan, hasCitingEntry, hasCitedEntry)
 
 
-
-
-
-
 class BasicQueryEngine():
-    def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
+    def __init__(self, citationQuery:CitationQueryHandler = (), bibliographicEntityQuery:BibliographicEntityQueryHandler = ()):
         self.citationQuery = citationQuery 
         self.bibliographicEntityQuery = bibliographicEntityQuery
     
     def cleanCitationHandlers(self) -> bool:
-        self.citationQuery = []
+        self.citationQuery = ()
         return True
     
     def cleanBibliographicEntityHandlers(self) -> bool:
-        self.bibliographicEntityQuery = []
+        self.bibliographicEntityQuery = ()
         return True
     
     def addCitationHandler(self, input:CitationQueryHandler) -> bool: 
         if type(input) == CitationQueryHandler:
-            self.citationQuery.append(input)
+            self.citationQuery = input
             return True
-        else:
-            return False
+
 
     def addBibliographicEntityHandler(self, input:BibliographicEntityQueryHandler) -> bool:
         if type(input) == BibliographicEntityQueryHandler:
-            self.bibliographicEntityQuery.append(input)
+            self.bibliographicEntityQuery = input
             return True
-        else:
-            return False
+
     
     def getEntityById(id):
-      #primo passo: trovare il fottuto id.
-      prefix_id = "https://oci.opencitations.net/virtual/ci/"
-      df = QueryHandler.getById(id).iloc[0]
-      if len(df) == 0:
-        df_class = Citation(id= prefix_id + df["oci"], creation=df["creation"], timespan=df["timespan"]) 
-        return df_class.id, df_class.creation , df_class.timespan
-      else: 
-          return None
-    
+        pass
+      
+
     def getAllCitations() -> list:
         pass
 
@@ -755,7 +587,6 @@ class BasicQueryEngine():
     def getBibliographicEntitiesWithVenue(venue:str) -> list:
         pass
     
-#print(BasicQueryEngine.getEntityById("06102330980-0680100982"))
 
 class FullQueryEngine(BasicQueryEngine):
     def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
@@ -772,4 +603,3 @@ class FullQueryEngine(BasicQueryEngine):
 
     def getReferencesOfBibEntityByTitleWithinTimespan(bib_entity_title:str, min_timespan:str, max_timespan:str) -> list:
         pass
-
