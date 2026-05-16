@@ -90,7 +90,6 @@ class BibliographicEntityUploadHandler(UploadHandler):
             data = load(f)   # lista di dizionari
             
         rows_entity    = list()
-        print(data)
         for dic in data:
             internal_id = ""
             title    = dic.get("title", "") 
