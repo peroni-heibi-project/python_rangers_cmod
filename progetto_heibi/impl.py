@@ -2,7 +2,6 @@ import pandas as pd
 from SPARQLWrapper import SPARQLWrapper, POST
 from sparqlite import SPARQLClient
 from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
-from rdflib import Graph, URIRef, Literal, RDFS
 import isodate
 from json import load
 from sqlite3 import connect
@@ -142,8 +141,8 @@ class QueryHandler(Handler):
             SELECT ?oci ?citing ?cited ?creation ?timespan
             WHERE 
                 {{?s rdfs:label '{id}' .
-                ?s cito:hasCitationCreationDate ?creation .
-                ?s cito:hasCitationTimeSpan ?timespan .
+                ?s cito:hasCreationDate ?creation .
+                ?s cito:hasTimespan ?timespan .
                 ?s cito:hasCitingEntity ?citing .
                 ?s cito:hasCitedEntity ?cited }}"""
             
@@ -271,11 +270,11 @@ class CitationQueryHandler(QueryHandler):
         
         SELECT ?oci ?creation ?citing ?cited ?timespan
         WHERE {{ 
-            ?s cito:hasCitationCreationDate ?creation .
+            ?s cito:hasCreationDate ?creation .
             ?s rdfs:label ?oci .
             ?s cito:hasCitingEntity ?citing . 
             ?s cito:hasCitedEntity ?cited . 
-            ?s cito:hasCitationTimeSpan ?timespan}}
+            ?s cito:hasTimespan ?timespan}}
         """
         with SPARQLClient(endpoint) as client:
             result = client.query(query)
@@ -289,23 +288,20 @@ class CitationQueryHandler(QueryHandler):
                 else:
                     row[var] = ""
             rows.append(row)
-            result = pd.DataFrame(rows)
-            if len(result) > 0:
-                return result
-            else:
-                return None
-    
+        return pd.DataFrame(rows)
+
+
     def getAllAuthorSelfCitations(self) -> pd.DataFrame:
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
             SELECT ?oci ?creation ?citing ?cited ?timespan
             WHERE {{ 
-                ?s cito:hasCitationCreationDate ?creation .
+                ?s cito:hasCreationDate ?creation .
                 ?s rdfs:label ?oci .
                 ?s cito:hasCitingEntity ?citing . 
                 ?s cito:hasCitedEntity ?cited . 
-                ?s cito:hasCitationTimeSpan ?timespan . 
+                ?s cito:hasTimespan ?timespan . 
             ?s cito:AuthorSelfCitation  ?author_sc . 
             ?s cito:AuthorSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
@@ -334,7 +330,7 @@ class CitationQueryHandler(QueryHandler):
                 ?s rdfs:label ?oci .
                 ?s cito:hasCitingEntity ?citing . 
                 ?s cito:hasCitedEntity ?cited . 
-                ?s cito:hasCitationTimeSpan ?timespan . 
+                ?s cito:hasTimespan ?timespan . 
             ?s cito:JournalSelfCitation  ?journal_sc . 
             ?s cito:JournalSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
@@ -359,11 +355,11 @@ class CitationQueryHandler(QueryHandler):
         
         SELECT ?oci ?creation ?citing ?cited ?timespan
         WHERE {{ 
-            ?s cito:hasCitationCreationDate ?creation .
+            ?s cito:hasCreationDate ?creation .
             ?s rdfs:label ?oci .
             ?s cito:hasCitingEntity ?citing . 
             ?s cito:hasCitedEntity ?cited . 
-            ?s cito:hasCitationTimeSpan ?timespan}}
+            ?s cito:hasTimespan ?timespan}}
         """
         with SPARQLClient(endpoint) as client:
             response = client.query(query)
@@ -422,11 +418,11 @@ class CitationQueryHandler(QueryHandler):
 
             SELECT ?oci ?creation ?citing ?cited ?timespan
             WHERE {{ 
-            ?s cito:hasCitationCreationDate ?creation .
+            ?s cito:hasCreationDate ?creation .
             ?s rdfs:label ?oci .
             ?s cito:hasCitingEntity ?citing . 
             ?s cito:hasCitedEntity ?cited . 
-            ?s cito:hasCitationTimeSpan ?timespan}}
+            ?s cito:hasTimespan ?timespan}}
             """
        
         with SPARQLClient(endpoint) as client:
