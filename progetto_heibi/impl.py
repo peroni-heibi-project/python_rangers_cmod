@@ -26,7 +26,7 @@ class Handler:
     def getDbPathOrUrl(self):
         return self.dbPathOrUrl
     
-    def setDbPathOrUrl(self, input): #DA CAPIRE
+    def setDbPathOrUrl(self, input):
         self.dbPathOrUrl = input
         return True
         #if input[len(input)-3:] == ".db":
@@ -42,7 +42,7 @@ class UploadHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
 
-    def pushDataToDb(self, path): 
+    def pushDataToDb(self, path) -> bool: 
         pass
 
 #Alice - qua sotto ho modificato cosine, cancellato il richiamo della classe che era stato fatto due volte, ho corretto anche un altro pushDatatoDb in pushDataToDb    
@@ -51,7 +51,7 @@ class CitationUploadHandler(UploadHandler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
     
-    def pushDataToDb(self, path):
+    def pushDataToDb(self, path) -> bool:
         df = pd.read_csv(path, keep_default_na=None)
 
         sparql = SPARQLWrapper(self.dbPathOrUrl)
@@ -130,27 +130,27 @@ class CitationUploadHandler(UploadHandler):
 
     
 class BibliographicEntityUploadHandler(UploadHandler):
-    """
-    Legge il file dh_metadata.json e popola un database SQLite.
+    #"""
+    #Legge il file dh_metadata.json e popola un database SQLite.
 
-    Struttura del JSON (verificata sul file reale, 10.708 record):
-      "id":       lista di stringhe → ["omid:br/...", "doi:...", ...]
-      "author":   lista di stringhe → ["Cognome, Nome", ...]
-      "title":    stringa           → può essere ""
-      "pub_date": stringa           → può essere "", es. "2022-10"
-      "venue":    stringa o null    → solo titolo, nessun id separato
+    #Struttura del JSON (verificata sul file reale, 10.708 record):
+    #  "id":       lista di stringhe → ["omid:br/...", "doi:...", ...]
+    #  "author":   lista di stringhe → ["Cognome, Nome", ...]
+    #  "title":    stringa           → può essere ""
+    #  "pub_date": stringa           → può essere "", es. "2022-10"
+    #  "venue":    stringa o null    → solo titolo, nessun id separato
 
-    Tabelle create nel database SQLite:
-      BibliographicEntity  → una riga per ogni record del JSON
-      EntityId             → una riga per ogni identificatore di ogni entità
-      Author               → una riga per ogni autore di ogni entità
-      Venue                → una riga per ogni venue non nulla
-    """
+    #Tabelle create nel database SQLite:
+    #  BibliographicEntity  → una riga per ogni record del JSON
+    #  EntityId             → una riga per ogni identificatore di ogni entità
+    #  Author               → una riga per ogni autore di ogni entità
+    #  Venue                → una riga per ogni venue non nulla
+    #"""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, dbPathOrUrl:str = ""):
+        super().__init__(dbPathOrUrl)
 
-    def pushDataToDb(self, path):
+    def pushDataToDb(self, path) -> bool:
 
         # Leggiamo il file JSON con il pattern 'with open' del professore
         with open(path, "r", encoding="utf-8") as f:
@@ -256,7 +256,7 @@ class QueryHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
         
-    def getById(self, id):
+    def getById(self, id) -> pd.DataFrame:
         result = pd.DataFrame()
         if (("omid" in id) or ("doi" in id) or ("openalex" in id) or ("isbn" in id)):
             with connect(self.dbPathOrUrl) as con:
@@ -302,8 +302,8 @@ class QueryHandler(Handler):
             return result 
             
     
-pipi = QueryHandler
-print(QueryHandler.getById(pipi, "lala"))            
+#pipi = QueryHandler
+#print(QueryHandler.getById(pipi, "lala"))            
 
 class BibliographicEntityQueryHandler(QueryHandler):
     #"""
@@ -316,7 +316,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
         super().__init__(dbPathOrUrl)
 
 
-    def getAllBibliographicEntities(self):
+    def getAllBibliographicEntities(self) -> pd.DataFrame:
         # LEFT JOIN perché alcune entità potrebbero non avere autori o venue
         with connect(self.dbPathOrUrl) as con:
             query = """
@@ -332,7 +332,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
             df = pd.read_sql(query, con)
         return df
 
-    def getBibliographicEntitiesWithTitle(self, title):
+    def getBibliographicEntitiesWithTitle(self, title) -> pd.DataFrame:
         # LIKE con % cerca la stringa come sottostringa del titolo
         with connect(self.dbPathOrUrl) as con:
             query = """
@@ -345,7 +345,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
             df = pd.read_sql(query, con, params=("%" + title + "%",))
         return df
 
-    def getBibliographicEntitiesWithAuthor(self, name):
+    def getBibliographicEntitiesWithAuthor(self, name) -> pd.DataFrame:
         # DISTINCT evita duplicati se il nome matcha sia givenName che familyName
         with connect(self.dbPathOrUrl) as con:
             query = """
@@ -362,7 +362,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
             df = pd.read_sql(query, con, params=(pattern, pattern))
         return df
 
-    def getBibliographicEntitiesWithinPublicationDate(self, start=None, end=None):
+    def getBibliographicEntitiesWithinPublicationDate(self, start=None, end=None) -> pd.DataFrame:
         # Clausola WHERE costruita dinamicamente: start e end sono opzionali
         conditions = list()
         params     = list()
@@ -385,7 +385,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
             df = pd.read_sql(query, con, params=params)
         return df
 
-    def getBibliographicEntitiesWithVenue(self, venue_name):
+    def getBibliographicEntitiesWithVenue(self, venue_name) -> pd.DataFrame:
         with connect(self.dbPathOrUrl) as con:
             query = """
                 SELECT DISTINCT be.internalId, be.title, be.pub_date,
@@ -410,7 +410,7 @@ class CitationQueryHandler(QueryHandler):
         super().__init__(dbPathOrUrl)
 
 
-    def getAllCitations(self):
+    def getAllCitations(self) -> pd.DataFrame:
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f""" 
         PREFIX cito:<http://purl.org/spar/cito/>
@@ -441,7 +441,7 @@ class CitationQueryHandler(QueryHandler):
             else:
                 return None
     
-    def getAllAuthorSelfCitations(self):
+    def getAllAuthorSelfCitations(self) -> pd.DataFrame:
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
@@ -470,7 +470,7 @@ class CitationQueryHandler(QueryHandler):
                 rows.append(row)
         return pd.DataFrame(rows)
     
-    def getAllJournalSelfCitations(self):
+    def getAllJournalSelfCitations(self) -> pd.DataFrame:
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
@@ -498,7 +498,7 @@ class CitationQueryHandler(QueryHandler):
                 rows.append(row)
         return pd.DataFrame(rows)
     
-    def getCitationsWithinTimespan(self, beginning, end):
+    def getCitationsWithinTimespan(self, beginning = "", end = "") -> pd.DataFrame:
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f""" 
         PREFIX cito:  <http://purl.org/spar/cito/>
@@ -560,7 +560,7 @@ class CitationQueryHandler(QueryHandler):
                 result.reset_index(drop=True, inplace=True)                
             return result
 
-    def getCitationsWithinDate(self, min, max): 
+    def getCitationsWithinDate(self, min = "", max = "") -> pd.DataFrame: 
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f"""
             PREFIX cito:  <http://purl.org/spar/cito/>
@@ -620,43 +620,76 @@ class CitationQueryHandler(QueryHandler):
 #print(CitationQueryHandler.getCitationsWithinTimeSpan("P0Y", ""))
 
 #print(CitationQueryHandler.getAllCitations())
-#1print(CitationQueryHandler.getAuthorSelfCitations())
+#print(CitationQueryHandler.getAuthorSelfCitations())
 #print(CitationQueryHandler.getAllJournalSelfCitations())
 
 class IdentifiableEntity():
-    def __init__(self, id:str):
-        self.id = id
-    
+    def __init__(self, id):
+        self.id = list()
+        for single_id in id:
+            self.id.append(single_id)
+
+    def getIds(self) -> list:
+        return self.id
+
 class BibliographicEntity(IdentifiableEntity):
-    def __init__(self, id, title, author, publication_date, venue):
+    def __init__(self, id, title:str = None, author = None, publication_date:str = None, venue:str = None):
         self.title = title
-        self.author = author
+        self.author = list()
+        for single_author in author:
+            self.author.append(single_author)
         self.publication_date = publication_date
         self.venue = venue
         super().__init__(id)
 
+    def getTitle(self) -> str:
+        return self.title
+    
+    def getAuthors(self) -> list:
+        return self.author
+    
+    def getPublicationDate(self) -> str:
+        return self.publication_date
+    
+    def getVenue(self) -> str:
+        return self.venue
+
 
 class Citation(IdentifiableEntity):
-    def __init__(self, id, creation:str,timespan:str ):
-        self.id = id
+    def __init__(self, id, creation:str, timespan:str, hasCitingEntry:BibliographicEntity = None, hasCitedEntry: BibliographicEntity = None):
         self.creation = creation
         self.timespan = timespan
+        self.hasCitingEntry = hasCitingEntry
+        self.hasCitedEntry = hasCitedEntry
         super().__init__(id)
+
+    def getCreation(self) -> str:
+        return self.creation
+    
+    def getTimespan(self) -> str:
+        return self.timespan
+    
+    def getCitingEntry(self) -> BibliographicEntity:
+        return self.hasCitingEntry
+
+    def getCitedEntry(self) -> BibliographicEntity:
+        return self.hasCitedEntry
     
 class JournalSelfCitation(Citation):
-    def __init__(self, id, creation, timespan):
-        super().__init__(id, creation, timespan)
+    def __init__(self, id, creation: str, timespan:str, hasCitingEntry:BibliographicEntity = None, hasCitedEntry: BibliographicEntity = None):
+        super().__init__(id, creation, timespan, hasCitingEntry, hasCitedEntry)
 
 class AuthorSelfCitation(Citation):
-    def __init__(self, id, creation, timespan):
-        super().__init__(id, creation, timespan)
+    def __init__(self, id, creation: str, timespan:str, hasCitingEntry:BibliographicEntity = None, hasCitedEntry: BibliographicEntity = None):
+        super().__init__(id, creation, timespan, hasCitingEntry, hasCitedEntry)
+
 
 
 
 
 
 class BasicQueryEngine():
-    def __init__(self, citationQuery:list, bibliographicEntityQuery:list):
+    def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
         self.citationQuery = citationQuery 
         self.bibliographicEntityQuery = bibliographicEntityQuery
     
@@ -710,13 +743,13 @@ class BasicQueryEngine():
     def getAllBibliographicEntities() -> list:
         pass
 
-    def getBibliographicEntitesWithTitle(title:str) -> list:
+    def getBibliographicEntitiesWithTitle(title:str) -> list:
         pass
 
     def getBibliographicEntitiesWithAuthor(author:str) -> list:
         pass
 
-    def getBibliographicEntitesWithinDate(start_date:str, end_date:str) -> list:
+    def getBibliographicEntitiesWithinPublicationDate(start_date:str, end_date:str) -> list:
         pass
 
     def getBibliographicEntitiesWithVenue(venue:str) -> list:
@@ -725,9 +758,7 @@ class BasicQueryEngine():
 #print(BasicQueryEngine.getEntityById("06102330980-0680100982"))
 
 class FullQueryEngine(BasicQueryEngine):
-    def __init__(self, citationQuery:str, bibliographicEntityQuery:str):
-        self.citationQuery = citationQuery 
-        self.bibliographicEntityQuery = bibliographicEntityQuery
+    def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
         super().__init__(citationQuery, bibliographicEntityQuery)
 
     def getAuthorSelfCitationsByName(author_name:str) -> list:
@@ -742,6 +773,3 @@ class FullQueryEngine(BasicQueryEngine):
     def getReferencesOfBibEntityByTitleWithinTimespan(bib_entity_title:str, min_timespan:str, max_timespan:str) -> list:
         pass
 
-    
-    
-Bonzo = Handler()
