@@ -182,7 +182,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
     def getAllBibliographicEntities(self) -> pd.DataFrame:
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT 
+                SELECT DISTINCT
                 internalId, title, 
                 author, pub_date,
                 venue, id
@@ -196,8 +196,9 @@ class BibliographicEntityQueryHandler(QueryHandler):
         # LIKE con % cerca la stringa come sottostringa del titolo
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT internalId, title, pub_date, author,
-                       id, venue
+                SELECT DISTINCT
+                    internalId, title, pub_date, author,
+                    id, venue
                 FROM BibliographicEntity 
                 WHERE title LIKE ?
             """
@@ -208,7 +209,8 @@ class BibliographicEntityQueryHandler(QueryHandler):
         # DISTINCT evita duplicati se il nome matcha sia givenName che familyName
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT internalId, title, pub_date, author,
+                SELECT DISTINCT
+                        internalId, title, pub_date, author,
                        id, venue
                 FROM BibliographicEntity 
 
@@ -231,7 +233,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
 
         with connect(self.dbPathOrUrl) as con:
             query = f"""
-                SELECT internalId, title, pub_date, author, venue,
+                SELECT DISTINCT internalId, title, pub_date, author, venue,
                        id 
                 FROM BibliographicEntity 
                 {where_clause}
@@ -242,7 +244,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
     def getBibliographicEntitiesWithVenue(self, venue_name) -> pd.DataFrame:
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT internalId, title, pub_date, author,
+                SELECT DISTINCT internalId, title, pub_date, author,
                        id, venue
 
                 FROM BibliographicEntity 
@@ -268,7 +270,7 @@ class CitationQueryHandler(QueryHandler):
         query = f""" 
         PREFIX cito:<http://purl.org/spar/cito/>
         
-        SELECT ?oci ?creation ?citing ?cited ?timespan
+        SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
         WHERE {{ 
             ?s cito:hasCreationDate ?creation .
             ?s rdfs:label ?oci .
@@ -295,7 +297,7 @@ class CitationQueryHandler(QueryHandler):
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
-            SELECT ?oci ?creation ?citing ?cited ?timespan
+            SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
             WHERE {{ 
                 ?s cito:hasCreationDate ?creation .
                 ?s rdfs:label ?oci .
@@ -324,7 +326,7 @@ class CitationQueryHandler(QueryHandler):
         endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
-            SELECT ?oci ?creation ?citing ?cited ?timespan
+            SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
             WHERE {{ 
                 ?s cito:hasCitationCreationDate ?creation .
                 ?s rdfs:label ?oci .
@@ -353,7 +355,7 @@ class CitationQueryHandler(QueryHandler):
         query = f""" 
         PREFIX cito:  <http://purl.org/spar/cito/>
         
-        SELECT ?oci ?creation ?citing ?cited ?timespan
+        SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
         WHERE {{ 
             ?s cito:hasCreationDate ?creation .
             ?s rdfs:label ?oci .
@@ -416,7 +418,7 @@ class CitationQueryHandler(QueryHandler):
             PREFIX cito:  <http://purl.org/spar/cito/>
             PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-            SELECT ?oci ?creation ?citing ?cited ?timespan
+            SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
             WHERE {{ 
             ?s cito:hasCreationDate ?creation .
             ?s rdfs:label ?oci .
@@ -524,7 +526,7 @@ class AuthorSelfCitation(Citation):
 
 
 class BasicQueryEngine():
-    def __init__(self, citationQuery:CitationQueryHandler = (), bibliographicEntityQuery:BibliographicEntityQueryHandler = ()):
+    def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
         self.citationQuery = citationQuery 
         self.bibliographicEntityQuery = bibliographicEntityQuery
     
@@ -538,13 +540,13 @@ class BasicQueryEngine():
     
     def addCitationHandler(self, input:CitationQueryHandler) -> bool: 
         if type(input) == CitationQueryHandler:
-            self.citationQuery = input
+            self.citationQuery.append(input)
             return True
 
 
     def addBibliographicEntityHandler(self, input:BibliographicEntityQueryHandler) -> bool:
         if type(input) == BibliographicEntityQueryHandler:
-            self.bibliographicEntityQuery = input
+            self.bibliographicEntityQuery.append(input)
             return True
 
     
@@ -567,14 +569,65 @@ class BasicQueryEngine():
     def getCitationsWithinDate(start_date:str, end_date:str) -> list:
         pass
 
-    def getAllBibliographicEntities() -> list:
-        pass
+    def getAllBibliographicEntities(self) -> list:
+        qhandler = self.bibliographicEntityQuery
+        cl = qhandler[len(qhandler)-1]
+        df = cl.getAllBibliographicEntities()
 
-    def getBibliographicEntitiesWithTitle(title:str) -> list:
-        pass
+        result = list()
+        for idx, row in df.iterrows():
+            author = row["author"].split("; ") if row["author"] != None else None
+            if len(row["id"]) > 0:
+                i = row["id"].split("; ")
+            
+            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
+                                         author= author,
+                                         id= i if i else row["id"],
+                                         publication_date=row["pub_date"] if row["pub_date"] else None,
+                                         venue=row["venue"] if row["venue"] else None)
+            print(bib_en.id, bib_en.title)
+            result.append(bib_en)
+        return result       
 
-    def getBibliographicEntitiesWithAuthor(author:str) -> list:
-        pass
+
+    def getBibliographicEntitiesWithTitle(self, title:str) -> list:
+        qhandler = self.bibliographicEntityQuery
+        cl = qhandler[len(qhandler)-1]
+        df = cl.getBibliographicEntitiesWithTitle(title)
+
+        result = list()
+        for idx, row in df.iterrows():
+            author = row["author"].split("; ") if row["author"] != None else None
+            if len(row["id"]) > 0:
+                i = row["id"].split("; ")
+            
+            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
+                                         author= author,
+                                         id= i if i else row["id"],
+                                         publication_date=row["pub_date"] if row["pub_date"] else None,
+                                         venue=row["venue"] if row["venue"] else None)
+
+            result.append(bib_en)
+        return result   
+
+    def getBibliographicEntitiesWithAuthor(self, author:str) -> list:
+        qhandler = self.bibliographicEntityQuery
+        cl = qhandler[len(qhandler)-1]
+        df = cl.getBibliographicEntitiesWithAuthor(author)
+
+        result = list()
+        for idx, row in df.iterrows():
+            author = row["author"].split("; ") if row["author"] != None else None
+            if len(row["id"]) > 0:
+                i = row["id"].split("; ")
+            
+            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
+                                         author= author,
+                                         id= i if i else row["id"],
+                                         publication_date=row["pub_date"] if row["pub_date"] else None,
+                                         venue=row["venue"] if row["venue"] else None)
+            result.append(bib_en)
+        return result   
 
     def getBibliographicEntitiesWithinPublicationDate(start_date:str, end_date:str) -> list:
         pass
