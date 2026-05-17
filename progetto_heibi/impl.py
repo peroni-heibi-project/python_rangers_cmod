@@ -66,6 +66,7 @@ class CitationUploadHandler(UploadHandler):
 
             INSERT DATA {{
                 <{citation_uri}> a cito:Citation ;
+                    rdfs:label "{row['oci']}"^^xsd:string ; 
                     cito:hasCitingEntity <https://opencitations.net/entity/{row['citing']}> ;
                     cito:hasCitedEntity <https://opencitations.net/entity/{row['cited']}> ;
                     cito:hasCreationDate "{row['creation']}"^^xsd:string ;
