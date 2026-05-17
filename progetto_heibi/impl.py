@@ -12,30 +12,20 @@ from sqlite3 import connect
 #java -server -Xmx1g -jar blazegraph.jar
 
 
-#Andrea
-#Impostato il parametro dbPathOrUrl:str = "", così da renderlo opzionale, dato che dovrebbe essere settato ad una stringa vuota. Ho ripetuto la cosa per tutte le sottoclassi
-#Cambiato setDbPathOrUrl
-
-
 
 class Handler:
     def __init__(self, dbPathOrUrl:str = ""):
         self.dbPathOrUrl = dbPathOrUrl
 
-    def getDbPathOrUrl(self):
+    def getDbPathOrUrl(self) -> str:
         return self.dbPathOrUrl
     
-    def setDbPathOrUrl(self, input):
-        self.dbPathOrUrl = input
-        return True
-        #if input[len(input)-3:] == ".db":
-        #    self.dbPathOrUrl = input
-        #    return True
-        #else:
-        #    return False
+    def setDbPathOrUrl(self, input:str) -> bool:
+        if type(input) == str:
+            self.dbPathOrUrl = input
+            return True
+        return False
 
-#Andrea
-#Corretto pushDatatoDb in pushDataToDb
 
 class UploadHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
@@ -50,72 +40,76 @@ class CitationUploadHandler(UploadHandler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
     
-    def pushDataToDb(self, path) -> bool:
-        df = pd.read_csv(path, keep_default_na=None)
+    def pushDataToDb(self, path:str) -> bool:
+        if type(path) == str:
+            df = pd.read_csv(path, keep_default_na=None)
 
-        sparql = SPARQLWrapper(self.dbPathOrUrl)
-        sparql.setMethod("POST")
+            sparql = SPARQLWrapper(self.dbPathOrUrl)
+            sparql.setMethod("POST")
 
-        for _, row in df.iterrows():
-            citation_uri = f"https://opencitations.net/citation/{row['oci']}"
-            query = f"""
-            PREFIX cito: <http://purl.org/spar/cito/>
-            PREFIX datacite: <http://purl.org/spar/datacite/>
-            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+            for _, row in df.iterrows():
+                citation_uri = f"https://opencitations.net/citation/{row['oci']}"
+                query = f"""
+                PREFIX cito: <http://purl.org/spar/cito/>
+                PREFIX datacite: <http://purl.org/spar/datacite/>
+                PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-            INSERT DATA {{
-                <{citation_uri}> a cito:Citation ;
-                    rdfs:label "{row['oci']}"^^xsd:string ; 
-                    cito:hasCitingEntity <https://opencitations.net/entity/{row['citing']}> ;
-                    cito:hasCitedEntity <https://opencitations.net/entity/{row['cited']}> ;
-                    cito:hasCreationDate "{row['creation']}"^^xsd:string ;
-                    cito:hasTimespan "{row['timespan']}"^^xsd:string ;
-                    cito:isJournalSelfCitation "{row['journal_sc']}"^^xsd:string ;
-                    cito:isAuthorSelfCitation "{row['author_sc']}"^^xsd:string . 
-            }}
-            """
+                INSERT DATA {{
+                    <{citation_uri}> a cito:Citation ;
+                        rdfs:label "{row['oci']}"^^xsd:string ; 
+                        cito:hasCitingEntity <https://opencitations.net/entity/{row['citing']}> ;
+                        cito:hasCitedEntity <https://opencitations.net/entity/{row['cited']}> ;
+                        cito:hasCreationDate "{row['creation']}"^^xsd:string ;
+                        cito:hasTimespan "{row['timespan']}"^^xsd:string ;
+                        cito:isJournalSelfCitation "{row['journal_sc']}"^^xsd:string ;
+                        cito:isAuthorSelfCitation "{row['author_sc']}"^^xsd:string . 
+                }}
+                """
 
-            sparql.setQuery(query)
-            sparql.query()
-        return True
+                sparql.setQuery(query)
+                sparql.query()
+            return True
+        return False
     
 class BibliographicEntityUploadHandler(UploadHandler):
 
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
 
-    def pushDataToDb(self, path) -> bool:
-        with open(path, "r", encoding="utf-8") as f:
-            data = load(f)   # lista di dizionari
-            
-        rows_entity    = list()
-        for dic in data:
-            internal_id = ""
-            title    = dic.get("title", "") 
-            pub_date = dic.get("pub_date", "") 
-            for item in dic["id"]:
-                if "omid" in item:
-                    internal_id += item
-            entity_id = "; ".join(dic["id"])
-            author ="; ".join(dic["author"]) if len(dic["author"]) > 0 else ""
-            venue = dic["venue"] if dic["venue"] else ""
-            
-            rows_entity.append({
-                "internalId": internal_id,
-                "title": title,
-                "author": author,
-                "pub_date": pub_date,
-                "venue" : venue,
-                "id" : entity_id
-            })
+    def pushDataToDb(self, path:str) -> bool:
+        if type(path) == str:
+            with open(path, "r", encoding="utf-8") as f:
+                data = load(f)   # lista di dizionari
+                
+            rows_entity    = list()
+            for dic in data:
+                internal_id = ""
+                title    = dic.get("title", "") 
+                pub_date = dic.get("pub_date", "") 
+                for item in dic["id"]:
+                    if "omid" in item:
+                        internal_id += item
+                entity_id = "; ".join(dic["id"])
+                author ="; ".join(dic["author"]) if len(dic["author"]) > 0 else ""
+                venue = dic["venue"] if dic["venue"] else ""
+                
+                rows_entity.append({
+                    "internalId": internal_id,
+                    "title": title,
+                    "author": author,
+                    "pub_date": pub_date,
+                    "venue" : venue,
+                    "id" : entity_id
+                })
 
-        df = pd.DataFrame(rows_entity)
+            df = pd.DataFrame(rows_entity)
 
-        with connect(self.dbPathOrUrl) as con:
-            df.to_sql("BibliographicEntity", con,
-                                if_exists="append", index=False)
-        return True
+            with connect(self.dbPathOrUrl) as con:
+                df.to_sql("BibliographicEntity", con,
+                                    if_exists="append", index=False)
+            return True
+        return False
 
 class QueryHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
@@ -242,7 +236,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
             df = pd.read_sql(query, con, params=params)
         return df
 
-    def getBibliographicEntitiesWithVenue(self, venue_name) -> pd.DataFrame:
+    def getBibliographicEntitiesWithVenue(self, venue) -> pd.DataFrame:
         with connect(self.dbPathOrUrl) as con:
             query = """
                 SELECT DISTINCT internalId, title, pub_date, author,
@@ -252,13 +246,8 @@ class BibliographicEntityQueryHandler(QueryHandler):
 
                 WHERE venue LIKE ?
             """
-            df = pd.read_sql(query, con, params=("%" + venue_name + "%",))
+            df = pd.read_sql(query, con, params=("%" + venue + "%",))
         return df
-    
-
-#Andrea
-#Rinominato getAuthorSelfCitations in getAuthorSelfCitations
-#Rinominato getCitationsWithinTimeSpan in getCitationsWithinTimespan
 
     
 class CitationQueryHandler(QueryHandler):
@@ -532,109 +521,105 @@ class BasicQueryEngine():
         self.bibliographicEntityQuery = bibliographicEntityQuery
     
     def cleanCitationHandlers(self) -> bool:
-        self.citationQuery = ()
+        self.citationQuery = []
         return True
     
     def cleanBibliographicEntityHandlers(self) -> bool:
-        self.bibliographicEntityQuery = ()
+        self.bibliographicEntityQuery = []
         return True
     
     def addCitationHandler(self, input:CitationQueryHandler) -> bool: 
         if type(input) == CitationQueryHandler:
             self.citationQuery.append(input)
             return True
-
+        return False
 
     def addBibliographicEntityHandler(self, input:BibliographicEntityQueryHandler) -> bool:
         if type(input) == BibliographicEntityQueryHandler:
             self.bibliographicEntityQuery.append(input)
             return True
+        return False
 
     
-    def getEntityById(id):
+    def getEntityById(self, id) -> IdentifiableEntity:
         pass
       
 
-    def getAllCitations() -> list:
+    def getAllCitations(self) -> list:
         pass
 
-    def getAllAuthorSelfCitations() -> list:
+    def getAllAuthorSelfCitations(self) -> list:
         pass
 
-    def getAllJournalSelfCitations() -> list:
+    def getAllJournalSelfCitations(self) -> list:
         pass
 
-    def getCitationsWithinTimespan(min_time:str, max_time:str) -> list:
+    def getCitationsWithinTimespan(self, min_time:str, max_time:str) -> list:
         pass
 
-    def getCitationsWithinDate(start_date:str, end_date:str) -> list:
+    def getCitationsWithinDate(self, start_date:str, end_date:str) -> list:
         pass
+
+    def constructBibliographicEntityList(self, df:pd.DataFrame) -> list:
+        #additional function made to avoid repetitions in the code
+        list_of_be = list()
+        for idx, row in df.iterrows():
+            auth = row["author"].split("; ") if row["author"] != None else None
+            if len(row["id"]) > 0:
+                i = row["id"].split("; ")
+
+            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
+                                        author= auth,
+                                        id= i if i else row["id"],
+                                        publication_date=row["pub_date"] if row["pub_date"] else None,
+                                        venue=row["venue"] if row["venue"] else None)
+            list_of_be.append(bib_en)
+        return list_of_be
 
     def getAllBibliographicEntities(self) -> list:
         qhandler = self.bibliographicEntityQuery
-        cl = qhandler[len(qhandler)-1]
-        df = cl.getAllBibliographicEntities()
-
         result = list()
-        for idx, row in df.iterrows():
-            author = row["author"].split("; ") if row["author"] != None else None
-            if len(row["id"]) > 0:
-                i = row["id"].split("; ")
-            
-            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
-                                         author= author,
-                                         id= i if i else row["id"],
-                                         publication_date=row["pub_date"] if row["pub_date"] else None,
-                                         venue=row["venue"] if row["venue"] else None)
-            print(bib_en.id, bib_en.title)
-            result.append(bib_en)
-        return result       
-
+        for handler in qhandler:
+            if handler:
+                df = handler.getAllBibliographicEntities()
+                result.extend(self.constructBibliographicEntityList(df))
+        return result
 
     def getBibliographicEntitiesWithTitle(self, title:str) -> list:
         qhandler = self.bibliographicEntityQuery
-        cl = qhandler[len(qhandler)-1]
-        df = cl.getBibliographicEntitiesWithTitle(title)
-
         result = list()
-        for idx, row in df.iterrows():
-            author = row["author"].split("; ") if row["author"] != None else None
-            if len(row["id"]) > 0:
-                i = row["id"].split("; ")
-            
-            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
-                                         author= author,
-                                         id= i if i else row["id"],
-                                         publication_date=row["pub_date"] if row["pub_date"] else None,
-                                         venue=row["venue"] if row["venue"] else None)
-
-            result.append(bib_en)
-        return result   
+        for handler in qhandler:
+            if handler:
+                df = handler.getBibliographicEntitiesWithTitle(title)
+                result.extend(self.constructBibliographicEntityList(df))
+        return result
 
     def getBibliographicEntitiesWithAuthor(self, author:str) -> list:
         qhandler = self.bibliographicEntityQuery
-        cl = qhandler[len(qhandler)-1]
-        df = cl.getBibliographicEntitiesWithAuthor(author)
-
         result = list()
-        for idx, row in df.iterrows():
-            author = row["author"].split("; ") if row["author"] != None else None
-            if len(row["id"]) > 0:
-                i = row["id"].split("; ")
-            
-            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
-                                         author= author,
-                                         id= i if i else row["id"],
-                                         publication_date=row["pub_date"] if row["pub_date"] else None,
-                                         venue=row["venue"] if row["venue"] else None)
-            result.append(bib_en)
-        return result   
+        for handler in qhandler:
+            if handler:
+                df = handler.getBibliographicEntitiesWithAuthor(author)
+                result.extend(self.constructBibliographicEntityList(df))
+        return result
 
-    def getBibliographicEntitiesWithinPublicationDate(start_date:str, end_date:str) -> list:
-        pass
+    def getBibliographicEntitiesWithinPublicationDate(self, start_date:str = None, end_date:str = None) -> list:
+        qhandler = self.bibliographicEntityQuery
+        result = list()
+        for handler in qhandler:
+            if handler:
+                df = handler.getBibliographicEntitiesWithinPublicationDate(start_date, end_date)
+                result.extend(self.constructBibliographicEntityList(df))
+        return result
 
-    def getBibliographicEntitiesWithVenue(venue:str) -> list:
-        pass
+    def getBibliographicEntitiesWithVenue(self, venue:str) -> list:
+        qhandler = self.bibliographicEntityQuery
+        result = list()
+        for handler in qhandler:
+            if handler:
+                df = handler.getBibliographicEntitiesWithVenue(venue)
+                result.extend(self.constructBibliographicEntityList(df))
+        return result
     
 
 class FullQueryEngine(BasicQueryEngine):
