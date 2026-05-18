@@ -569,11 +569,18 @@ class BasicQueryEngine():
 
             bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
                                         author= auth,
-                                        id= i if i else row["id"],
+                                        id= i,
                                         publication_date=row["pub_date"] if row["pub_date"] else None,
                                         venue=row["venue"] if row["venue"] else None)
             list_of_be.append(bib_en)
         return list_of_be
+        
+    def constructCitationList(self, df:pd.DataFrame) -> list:
+        list_of_ci = list()
+        for idx, row in df.iterrows():
+            cit = Citation(id=row["oci"], creation=row["creation"], timespan=row["timespan"])
+            list_of_ci.append(cit)
+        return list_of_ci
 
     def getAllBibliographicEntities(self) -> list:
         qhandler = self.bibliographicEntityQuery
