@@ -642,7 +642,7 @@ class FullQueryEngine(BasicQueryEngine):
             merge_be = pd.concat([df_be, item.getBibliographicEntitiesWithTitle(bib_entity_title)])
             
         for item in ci_qhandler:
-            merge_ci = pd.concat([df_ci, item.getCitationsWithinTimespan(min_date, max_date)])
+            merge_ci = pd.concat([df_ci, item.getCitationsWithinDate(min_date, max_date)])
         
         prefix = "https://opencitations.net/entity/"
         merge_be["internalId"] = merge_be["internalId"].apply(lambda x: prefix + x)
