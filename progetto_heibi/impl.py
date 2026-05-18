@@ -631,8 +631,32 @@ class FullQueryEngine(BasicQueryEngine):
     def getJournalSelfCitationsByName(journal_name:str) -> list:
         pass
 
-    def getCitationsOfBibEntityByTitle(bib_entity_tutle:str, min_date:str, max_date:str) -> list:
-        pass
+    def getCitationsOfBibEntityByTitleWithinDate(self, bib_entity_title:str, min_date:str, max_date:str) -> list:
+        result = list()
+        be_qhandler = self.bibliographicEntityQuery
+        ci_qhandler = self.citationQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id", "publication_date"])
+        df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getBibliographicEntitiesWithTitle(bib_entity_title)])
+            
+        for item in ci_qhandler:
+            merge_ci = pd.concat([df_ci, item.getCitationsWithinTimespan(min_date, max_date)])
+        
+        prefix = "https://opencitations.net/entity/"
+        merge_be["internalId"] = merge_be["internalId"].apply(lambda x: prefix + x)
+
+        new_df = pd.merge(merge_be, merge_ci, left_on="internalId", right_on="cited", how="inner")
+
+        for idx, row in new_df.iterrows():
+            row_be = new_df.loc[[idx], ["internalId", "title", "author", "pub_date", "venue", "id", "publication_date"]]
+            row_cit = new_df.loc[[idx], ("oci", "creation", "citing", "cited", "timespan")]
+
+            ci = self.constructCitationList(row_cit)[0]
+            ci.hasCitedEntry = self.constructBibliographicEntityList(row_be)[0]
+            result.append(ci)  
+        return result
 
     def getReferencesOfBibEntityByTitleWithinTimespan(bib_entity_title:str, min_timespan:str, max_timespan:str) -> list:
         pass
