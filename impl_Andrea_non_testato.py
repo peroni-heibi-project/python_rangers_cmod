@@ -555,29 +555,27 @@ class BasicQueryEngine():
     def constructCitation(self, row:pd.Series) -> Citation:
         #additional function made to avoid repetitions in the code
         auth_citing = row["author_citing"].split("; ") if row["author_citing"] != None else None
-        if len(row["id_citing"]) > 0:
-            i_citing = row["id_citing"].split("; ")
+        i_citing = row["id_citing"].split("; ")
 
         auth_cited = row["author_cited"].split("; ") if row["author_cited"] != None else None
-        if len(row["id_cited"]) > 0:
-            i_cited = row["id_cited"].split("; ")
+        i_cited = row["id_cited"].split("; ")
 
         citing = None
         cited = None
 
         if row["citing"]:
-            citing = BibliographicEntity(title=row["title_citing"] if row["title_citing"] else None,
+            citing = BibliographicEntity(title=row["title_citing"],
                                          author= auth_citing,
                                          id= i_citing,
-                                         publication_date=row["pub_date_citing"] if row["pub_date_citing"] else None,
-                                         venue=row["venue_citing"] if row["venue_citing"] else None)
+                                         publication_date=row["pub_date_citing"],
+                                         venue=row["venue_citing"])
         
         if row["cited"]:
-            cited = BibliographicEntity(title=row["title_cited"] if row["title_cited"] else None,
+            cited = BibliographicEntity(title=row["title_cited"],
                                         author= auth_cited,
                                         id= i_cited,
-                                        publication_date=row["pub_date_cited"] if row["pub_date_cited"] else None,
-                                        venue=row["venue_cited"] if row["venue_cited"] else None)
+                                        publication_date=row["pub_date_cited"],
+                                        venue=row["venue_cited"])
         
         cit = Citation(id=row["oci"],
                        creation=row["creation"],
@@ -679,11 +677,11 @@ class BasicQueryEngine():
             if len(row["id"]) > 0:
                 i = row["id"].split("; ")
 
-            bib_en = BibliographicEntity(title=row["title"] if row["title"] else None,
+            bib_en = BibliographicEntity(title=row["title"],
                                         author= auth,
                                         id= i,
-                                        publication_date=row["pub_date"] if row["pub_date"] else None,
-                                        venue=row["venue"] if row["venue"] else None)
+                                        publication_date=row["pub_date"],
+                                        venue=row["venue"])
             list_of_be.append(bib_en)
         return list_of_be
 
@@ -730,24 +728,22 @@ class BasicQueryEngine():
 
         for idx, row in final_df.iterrows():
             auth_citing = row["author_citing"].split("; ") if row["author_citing"] != None else None
-            if len(row["id_citing"]) > 0:
-                i_citing = row["id_citing"].split("; ")
+            i_citing = row["id_citing"].split("; ")
 
             auth_cited = row["author_cited"].split("; ") if row["author_cited"] != None else None
-            if len(row["id_cited"]) > 0:
-                i_cited = row["id_cited"].split("; ")
+            i_cited = row["id_cited"].split("; ")
 
-            citing = BibliographicEntity(title=row["title_citing"] if row["title_citing"] else None,
+            citing = BibliographicEntity(title=row["title_citing"],
                                          author= auth_citing,
                                          id= i_citing,
-                                         publication_date=row["pub_date_citing"] if row["pub_date_citing"] else None,
-                                         venue=row["venue_citing"] if row["venue_citing"] else None)
+                                         publication_date=row["pub_date_citing"],
+                                         venue=row["venue_citing"])
             
-            cited = BibliographicEntity(title=row["title_cited"] if row["title_cited"] else None,
+            cited = BibliographicEntity(title=row["title_cited"],
                                         author= auth_cited,
                                         id= i_cited,
-                                        publication_date=row["pub_date_cited"] if row["pub_date_cited"] else None,
-                                        venue=row["venue_cited"] if row["venue_cited"] else None)
+                                        publication_date=row["pub_date_cited"],
+                                        venue=row["venue_cited"])
             
             jsc = AuthorSelfCitation(id=row["oci"],
                                       creation=row["creation"],
@@ -798,24 +794,22 @@ class BasicQueryEngine():
 
         for idx, row in final_df.iterrows():
             auth_citing = row["author_citing"].split("; ") if row["author_citing"] != None else None
-            if len(row["id_citing"]) > 0:
-                i_citing = row["id_citing"].split("; ")
+            i_citing = row["id_citing"].split("; ")
 
             auth_cited = row["author_cited"].split("; ") if row["author_cited"] != None else None
-            if len(row["id_cited"]) > 0:
-                i_cited = row["id_cited"].split("; ")
+            i_cited = row["id_cited"].split("; ")
 
-            citing = BibliographicEntity(title=row["title_citing"] if row["title_citing"] else None,
+            citing = BibliographicEntity(title=row["title_citing"],
                                          author= auth_citing,
                                          id= i_citing,
-                                         publication_date=row["pub_date_citing"] if row["pub_date_citing"] else None,
-                                         venue=row["venue_citing"] if row["venue_citing"] else None)
+                                         publication_date=row["pub_date_citing"],
+                                         venue=row["venue_citing"])
             
-            cited = BibliographicEntity(title=row["title_cited"] if row["title_cited"] else None,
+            cited = BibliographicEntity(title=row["title_cited"],
                                         author= auth_cited,
                                         id= i_cited,
-                                        publication_date=row["pub_date_cited"] if row["pub_date_cited"] else None,
-                                        venue=row["venue_cited"] if row["venue_cited"] else None)
+                                        publication_date=row["pub_date_cited"],
+                                        venue=row["venue_cited"])
             
             jsc = JournalSelfCitation(id=row["oci"],
                                       creation=row["creation"],
