@@ -679,7 +679,16 @@ class FullQueryEngine(BasicQueryEngine):
         pass
 
     def getJournalSelfCitationsByName(journal_name:str) -> list:
-        pass
+        result = list()
+        asc_list = self.getAllAuthorSelfCitations()
+        for asc in asc_list:
+            authors_citing = asc.getCitingEntry().getAuthors()
+            authors_cited  = asc.getCitedEntry().getAuthors()
+            citing_match = any(author_name in a for a in authors_citing)
+            cited_match  = any(author_name in a for a in authors_cited)
+            if citing_match and cited_match:
+                result.append(asc)
+        return result
 
     def getCitationsOfBibEntityByTitleWithinDate(self, bib_entity_title:str, min_date:str, max_date:str) -> list:
         result = list()
