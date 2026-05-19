@@ -49,6 +49,11 @@ class CitationUploadHandler(UploadHandler):
             sparql.setMethod("POST")
 
             for _, row in df.iterrows():
+                #Alice - ho aggiunto il controllo dati obbligatori che dicevamo con Silvia. Tutti i dati del Citation sono obbligatori,
+                #se anche solo uno è vuoto, la riga non rispetta i requisiti e non viene caricata nel database, come ci diceva Ivan.
+                if not (row["oci"] and row["citing"] and row["cited"] and row["creation"] and row["timespan"] and row ["journal_sc"] and row ["author_sc"]):
+                    continue
+                    
                 citation_uri = f"https://opencitations.net/citation/{row['oci']}"
                 query = f"""
                 PREFIX cito: <http://purl.org/spar/cito/>
