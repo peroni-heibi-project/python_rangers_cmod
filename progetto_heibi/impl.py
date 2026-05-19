@@ -676,7 +676,12 @@ class FullQueryEngine(BasicQueryEngine):
         super().__init__(citationQuery, bibliographicEntityQuery)
 
     def getAuthorSelfCitationsByName(author_name:str) -> list:
-        pass
+        result = list()
+        asc_list = self.getAllAuthorSelfCitations()
+        for asc in asc_list:
+            if author_name in asc.getCitingEntry().getAuthors() and author_name in asc.getCitedEntry().getAuthors():
+                result.append(asc)
+        return result
 
     def getJournalSelfCitationsByName(journal_name:str) -> list:
         pass
