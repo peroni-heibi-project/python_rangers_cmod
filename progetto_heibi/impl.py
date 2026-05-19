@@ -378,7 +378,9 @@ class CitationQueryHandler(QueryHandler):
                 if hasattr(d, "years"):
                     days += (d.years * 365)
                 return days
-                        
+            
+            t = timespan_to_days(row["timespan"])
+
             if len(beginning) == 0 and len(end) == 0:
                 return result
             
@@ -386,8 +388,7 @@ class CitationQueryHandler(QueryHandler):
                 if len(beginning) > 0:
                     min = timespan_to_days(beginning)
                     for idx, row in result.iterrows():
-                        t = timespan_to_days(row["timespan"])
-                        if not(min <= t <= max):
+                        if t < min:
                             result.drop(idx, axis=0, inplace=True)
                     result.reset_index(drop=True, inplace=True)
 
@@ -395,11 +396,10 @@ class CitationQueryHandler(QueryHandler):
                     max = timespan_to_days(end)
                     for idx, row in result.iterrows():
                         t = timespan_to_days(row["timespan"])
-                        if not(t <= max):
+                        if t > max:
                             result.drop(idx, axis=0, inplace=True)
                     result.reset_index(drop=True, inplace=True)
-            return result
-
+                return result
             
             
     def getCitationsWithinDate(self, min = "", max = "") -> pd.DataFrame: 
