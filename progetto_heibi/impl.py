@@ -34,7 +34,8 @@ class UploadHandler(Handler):
     def pushDataToDb(self, path) -> bool: 
         pass
 
-#Alice - qua sotto ho modificato cosine, cancellato il richiamo della classe che era stato fatto due volte, ho corretto anche un altro pushDatatoDb in pushDataToDb    
+#Alice - qua sotto ho modificato cosine, cancellato il richiamo della classe che era stato fatto due volte, ho corretto anche un altro pushDatatoDb in pushDataToDb.
+#Ho modificato "cito:isAuthorSelfCitation" in "cito:AuthorSelfCitation" perché il predicato non corrispondeva con quello usato nel metodo getAllAuthorSelfCitations in CitationQueryHandler. Stessa cosa per "cito:isJournalSelfCitation". Ora è uniforme. 
     
 class CitationUploadHandler(UploadHandler):
     def __init__(self, dbPathOrUrl:str = ""):
@@ -62,15 +63,14 @@ class CitationUploadHandler(UploadHandler):
                         cito:hasCitedEntity <https://opencitations.net/entity/{row['cited']}> ;
                         cito:hasCreationDate "{row['creation']}"^^xsd:string ;
                         cito:hasTimespan "{row['timespan']}"^^xsd:string ;
-                        cito:isJournalSelfCitation "{row['journal_sc']}"^^xsd:string ;
-                        cito:isAuthorSelfCitation "{row['author_sc']}"^^xsd:string . 
+                        cito:JournalSelfCitation "{row['journal_sc']}"^^xsd:string ;
+                        cito:AuthorSelfCitation "{row['author_sc']}"^^xsd:string . 
                 }}
                 """
-
+                    
                 sparql.setQuery(query)
                 sparql.query()
             return True
-        return False
     
 class BibliographicEntityUploadHandler(UploadHandler):
 
@@ -318,7 +318,7 @@ class CitationQueryHandler(QueryHandler):
                 
             SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
             WHERE {{ 
-                ?s cito:hasCitationCreationDate ?creation .
+                ?s cito:hasCreationDate ?creation .
                 ?s rdfs:label ?oci .
                 ?s cito:hasCitingEntity ?citing . 
                 ?s cito:hasCitedEntity ?cited . 
@@ -326,6 +326,7 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:JournalSelfCitation  ?journal_sc . 
             ?s cito:JournalSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
+        # Alice - Corretto "?s cito:hasCitationCreationDate" in "?s cito:hasCreationDate".
         with SPARQLClient(endpoint) as client:
             result = client.query(query)
             variables = result["head"]["vars"]
@@ -545,19 +546,56 @@ class BasicQueryEngine():
       
 
     def getAllCitations(self) -> list:
-        pass
+        result = list()
+        for handler in self.citationQuery:
+            if handler:
+                df = handler.getAllCitations()
+                result.extend(self.constructCitationList(df))
+        return result
 
     def getAllAuthorSelfCitations(self) -> list:
-        pass
+        result = list()
+        for handler in self.citationQuery:
+            if handler:
+                df = handler.getAllAuthorSelfCitations()
+                for idx, row in df.iterrows():
+                    cit = AuthorSelfCitation(
+                        id=row["oci"],
+                        creation=row["creation"],
+                        timespan=row["timespan"]
+                    )
+                    result.append(cit)
+        return result
 
     def getAllJournalSelfCitations(self) -> list:
-        pass
+        result = list()
+        for handler in self.citationQuery:
+            if handler:
+                df = handler.getAllJournalSelfCitations()
+                for idx, row in df.iterrows():
+                    cit = JournalSelfCitation(
+                        id=row["oci"],
+                        creation=row["creation"],
+                        timespan=row["timespan"]
+                    )
+                    result.append(cit)
+        return result
 
-    def getCitationsWithinTimespan(self, min_time:str, max_time:str) -> list:
-        pass
+    def getCitationsWithinTimespan(self, min_timespan:str, max_timespan:str) -> list:
+        result = list()
+        for handler in self.citationQuery:
+            if handler:
+                df = handler.getCitationsWithinTimespan(min_timespan, max_timespan)
+                result.extend(self.constructCitationList(df))
+        return result
 
     def getCitationsWithinDate(self, start_date:str, end_date:str) -> list:
-        pass
+        result = list()
+        for handler in self.citationQuery:
+            if handler:
+                df = handler.getCitationsWithinDate(start_date, end_date)
+                result.extend(self.constructCitationList(df))
+        return result
 
     def constructBibliographicEntityList(self, df:pd.DataFrame) -> list:
         #additional function made to avoid repetitions in the code
@@ -665,5 +703,29 @@ class FullQueryEngine(BasicQueryEngine):
             result.append(ci)  
         return result
 
-    def getReferencesOfBibEntityByTitleWithinTimespan(bib_entity_title:str, min_timespan:str, max_timespan:str) -> list:
-        pass
+    def getReferencesOfBibEntityByTitleWithinTimespan(self, bib_entity_title:str, min_timespan:str, max_timespan:str) -> list:
+        matching_ids = set()
+        for handler in self.bibliographicEntityQuery:
+            df = handler.getBibliographicEntitiesWithTitle(bib_entity_title)
+            if df is not None and not df.empty:
+                for idx, row in df.iterrows():
+                    for single_id in row["id"].split("; "):
+                        matching_ids.add(single_id.strip())
+        if not matching_ids:
+            return list()
+
+        result = list()
+        for handler in self.citationQuery:
+            df = handler.getCitationsWithinTimespan(min_timespan, max_timespan)
+            if df is not None and not df.empty:
+                for idx, row in df.iterrows():
+                    citing = row["citing"]
+                    if any(mid in citing for mid in matching_ids):
+                        cit = Citation(
+                            id=row["oci"],
+                            creation=row["creation"],
+                            timespan=row["timespan"]
+                        )
+                        result.append(cit)
+        return result
+
