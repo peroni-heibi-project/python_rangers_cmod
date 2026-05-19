@@ -89,23 +89,24 @@ class BibliographicEntityUploadHandler(UploadHandler):
                 
             rows_entity    = list()
             for dic in data:
-                internal_id = ""
-                title    = dic.get("title", "") 
-                pub_date = dic.get("pub_date", "") 
-                for item in dic["id"]:
-                    if "omid" in item:
-                        internal_id += item
-                entity_id = "; ".join(dic["id"])
-                author ="; ".join(dic["author"]) if len(dic["author"]) > 0 else ""
-                venue = dic["venue"] if dic["venue"] else ""
-                
-                rows_entity.append({
-                    "internalId": internal_id,
-                    "title": title,
-                    "author": author,
-                    "pub_date": pub_date,
-                    "venue" : venue,
-                    "id" : entity_id
+                if dic["id"]:
+                    internal_id = ""
+                    title    = dic.get("title", "") 
+                    pub_date = dic.get("pub_date", "") 
+                    for item in dic["id"]:
+                        if "omid" in item:
+                            internal_id += item
+                    entity_id = "; ".join(dic["id"])
+                    author ="; ".join(dic["author"]) if len(dic["author"]) > 0 else ""
+                    venue = dic["venue"] if dic["venue"] else ""
+                    
+                    rows_entity.append({
+                        "internalId": internal_id,
+                        "title": title,
+                        "author": author,
+                        "pub_date": pub_date,
+                        "venue" : venue,
+                        "id" : entity_id
                 })
 
             df = pd.DataFrame(rows_entity)
@@ -460,20 +461,16 @@ class CitationQueryHandler(QueryHandler):
 
 
 class IdentifiableEntity():
-    def __init__(self, id):
-        self.id = list()
-        for single_id in id:
-            self.id.append(single_id)
+    def __init__(self, id:list):
+        self.id = id
 
     def getIds(self) -> list:
         return self.id
 
 class BibliographicEntity(IdentifiableEntity):
-    def __init__(self, id, title:str = None, author = None, publication_date:str = None, venue:str = None):
+    def __init__(self, id, title:str = None, author:list = None, publication_date:str = None, venue:str = None):
         self.title = title
-        self.author = list()
-        for single_author in author:
-            self.author.append(single_author)
+        self.author = author
         self.publication_date = publication_date
         self.venue = venue
         super().__init__(id)
@@ -546,8 +543,102 @@ class BasicQueryEngine():
         return False
 
     
-    def getEntityById(self, id) -> IdentifiableEntity:
-        pass
+    def setFullDataFrame(self, be_df:pd.DataFrame, cit_df:pd.DataFrame) -> pd.DataFrame:
+        mom_be = be_df
+        prefix = "https://opencitations.net/entity/"
+        mom_be["internalId"] = mom_be["internalId"].apply(lambda x: prefix + x)
+
+        full_df = cit_df
+        
+        citing_df = mom_be.rename(columns={#"internalId":"InternalId_citing",
+                                        "title":"title_citing",
+                                        "author":"author_citing",
+                                        "pub_date":"pub_date_citing",
+                                        "venue":"venue_citing",
+                                        "id":"id_citing"})
+        
+        full_df = pd.merge(full_df, citing_df, left_on="citing", right_on="internalId", how="inner")
+    
+        cited_df = mom_be.rename(columns={#"internalId":"internalId_cited",
+                                        "title":"title_cited",
+                                        "author":"author_cited",
+                                        "pub_date":"pub_date_cited",
+                                        "venue":"venue_cited",
+                                        "id":"id_cited"})
+        
+        full_df = pd.merge(full_df, cited_df, left_on="cited", right_on="internalId", how="inner")
+
+        return full_df
+    
+    def constructBibliographicEntity(self, row:pd.Series) -> BibliographicEntity:
+        #additional function made to avoid repetitions in the code
+        auth = row["author"].split("; ") if row["author"] != None else None
+        i = row["id"].split("; ")
+
+        bib_en = BibliographicEntity(title=row["title"],
+                                    author= auth,
+                                    id= i,
+                                    publication_date=row["pub_date"],
+                                    venue=row["venue"])
+        return bib_en
+    
+    def constructCitation(self, row:pd.Series) -> Citation:
+        #additional function made to avoid repetitions in the code
+        citing = None
+        cited = None
+
+        if row["citing"]:
+            auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
+            i_citing = row["id_citing"].split("; ")
+            citing = BibliographicEntity(title=row["title_citing"],
+                                         author= auth_citing,
+                                         id= i_citing,
+                                         publication_date=row["pub_date_citing"],
+                                         venue=row["venue_citing"])
+        
+        if row["cited"]:
+            auth_cited = row["author_cited"].split("; ") if not row["author_cited"] else None
+            i_cited = row["id_cited"].split("; ")
+            cited = BibliographicEntity(title=row["title_cited"],
+                                        author= auth_cited,
+                                        id= i_cited,
+                                        publication_date=row["pub_date_cited"],
+                                        venue=row["venue_cited"])
+        
+        cit = Citation(id=row["oci"],
+                       creation=row["creation"],
+                       timespan=row["timespan"],
+                       hasCitingEntry=citing,
+                       hasCitedEntry=cited)
+        
+        return cit
+        
+    def getEntityById(self, id:str):
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+    
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        if id:
+            if id[0].isalpha(): #Andrea: forse da metterci caso stringa vuota?
+                for idx, row in merge_be.iterrows():
+                    if id in row["id"]:
+                        return self.constructBibliographicEntity(row)
+                    
+            else:
+                ci_qhandler = self.citationQuery
+                df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+                for item in ci_qhandler:
+                    merge_cit = pd.concat([df_ci, item.getAllCitations()])
+
+                full_df = self.setFullDataFrame(merge_be, merge_cit)
+
+                for idx, row_ci in full_df.iterrows():
+                    if row_ci["oci"] == id:
+                        return self.constructCitation(row_ci)
+
+        return None
       
 
     def getAllCitations(self) -> list:
@@ -560,30 +651,103 @@ class BasicQueryEngine():
 
     def getAllAuthorSelfCitations(self) -> list:
         result = list()
-        for handler in self.citationQuery:
-            if handler:
-                df = handler.getAllAuthorSelfCitations()
-                for idx, row in df.iterrows():
-                    cit = AuthorSelfCitation(
-                        id=row["oci"],
-                        creation=row["creation"],
-                        timespan=row["timespan"]
-                    )
-                    result.append(cit)
+
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        ci_qhandler = self.citationQuery
+        df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_asc = pd.concat([df_ci, item.getAllAuthorSelfCitations()])
+
+        full_df = self.setFullDataFrame(merge_be, merge_asc)
+
+        for idx, row in full_df.iterrows():
+            
+            citing = None
+            cited = None
+
+            if row["citing"]:
+                auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
+                i_citing = row["id_citing"].split("; ")
+
+                citing = BibliographicEntity(title=row["title_citing"],
+                                             author= auth_citing,
+                                             id= i_citing,
+                                             publication_date=row["pub_date_citing"],
+                                             venue=row["venue_citing"])
+                
+            if row["cited"]:
+
+                auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
+                i_cited = row["id_cited"].split("; ")
+
+                cited = BibliographicEntity(title=row["title_cited"],
+                                            author= auth_cited,
+                                            id= i_cited,
+                                            publication_date=row["pub_date_cited"],
+                                            venue=row["venue_cited"])
+            
+            asc = AuthorSelfCitation(id=row["oci"],
+                                     creation=row["creation"],
+                                     timespan=row["timespan"],
+                                     hasCitingEntry=citing,
+                                     hasCitedEntry=cited)
+
+            result.append(asc)
+
         return result
 
     def getAllJournalSelfCitations(self) -> list:
         result = list()
-        for handler in self.citationQuery:
-            if handler:
-                df = handler.getAllJournalSelfCitations()
-                for idx, row in df.iterrows():
-                    cit = JournalSelfCitation(
-                        id=row["oci"],
-                        creation=row["creation"],
-                        timespan=row["timespan"]
-                    )
-                    result.append(cit)
+
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        ci_qhandler = self.citationQuery
+        df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_jsc = pd.concat([df_ci, item.getAllJournalSelfCitations()])
+
+        final_df = self.setFullDataFrame(merge_be, merge_jsc)
+
+        for idx, row in final_df.iterrows():
+
+            citing = None
+            cited = None
+
+            if row["citing"]:
+                auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
+                i_citing = row["id_citing"].split("; ")
+
+                citing = BibliographicEntity(title=row["title_citing"],
+                                             author= auth_citing,
+                                             id= i_citing,
+                                             publication_date=row["pub_date_citing"],
+                                             venue=row["venue_citing"])
+                
+            if row["cited"]:
+
+                auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
+                i_cited = row["id_cited"].split("; ")
+
+                cited = BibliographicEntity(title=row["title_cited"],
+                                            author= auth_cited,
+                                            id= i_cited,
+                                            publication_date=row["pub_date_cited"],
+                                            venue=row["venue_cited"])
+            
+            jsc = JournalSelfCitation(id=row["oci"],
+                                     creation=row["creation"],
+                                     timespan=row["timespan"],
+                                     hasCitingEntry=citing,
+                                     hasCitedEntry=cited)
+            result.append(jsc)
+
         return result
 
     def getCitationsWithinTimespan(self, min_timespan:str, max_timespan:str) -> list:
@@ -626,48 +790,58 @@ class BasicQueryEngine():
         return list_of_ci
 
     def getAllBibliographicEntities(self) -> list:
-        qhandler = self.bibliographicEntityQuery
         result = list()
-        for handler in qhandler:
-            if handler:
-                df = handler.getAllBibliographicEntities()
-                result.extend(self.constructBibliographicEntityList(df))
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        for idx, row in merge_be.iterrows():
+            result.append(self.constructBibliographicEntity(row))
         return result
 
     def getBibliographicEntitiesWithTitle(self, title:str) -> list:
-        qhandler = self.bibliographicEntityQuery
         result = list()
-        for handler in qhandler:
-            if handler:
-                df = handler.getBibliographicEntitiesWithTitle(title)
-                result.extend(self.constructBibliographicEntityList(df))
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getBibliographicEntitiesWithTitle(title)])
+
+        for idx, row in merge_be.iterrows():
+            result.append(self.constructBibliographicEntity(row))
         return result
 
     def getBibliographicEntitiesWithAuthor(self, author:str) -> list:
-        qhandler = self.bibliographicEntityQuery
         result = list()
-        for handler in qhandler:
-            if handler:
-                df = handler.getBibliographicEntitiesWithAuthor(author)
-                result.extend(self.constructBibliographicEntityList(df))
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getBibliographicEntitiesWithAuthor(author)])
+
+        for idx, row in merge_be.iterrows():
+            result.append(self.constructBibliographicEntity(row))
         return result
 
     def getBibliographicEntitiesWithinPublicationDate(self, start_date:str = None, end_date:str = None) -> list:
-        qhandler = self.bibliographicEntityQuery
         result = list()
-        for handler in qhandler:
-            if handler:
-                df = handler.getBibliographicEntitiesWithinPublicationDate(start_date, end_date)
-                result.extend(self.constructBibliographicEntityList(df))
-        return result
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getBibliographicEntitiesWithinPublicationDate(start_date, end_date)])
 
+        for idx, row in merge_be.iterrows():
+            result.append(self.constructBibliographicEntity(row))
+        return result
+    
     def getBibliographicEntitiesWithVenue(self, venue:str) -> list:
-        qhandler = self.bibliographicEntityQuery
         result = list()
-        for handler in qhandler:
-            if handler:
-                df = handler.getBibliographicEntitiesWithVenue(venue)
-                result.extend(self.constructBibliographicEntityList(df))
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getBibliographicEntitiesWithVenue(venue)])
+
+        for idx, row in merge_be.iterrows():
+            result.append(self.constructBibliographicEntity(row))
         return result
     
 
@@ -683,8 +857,13 @@ class FullQueryEngine(BasicQueryEngine):
                 result.append(asc)
         return result
 
-    def getJournalSelfCitationsByName(journal_name:str) -> list:
-        pass
+    def getJournalSelfCitationsByName(self, journal_name:str) -> list:
+        result = list()
+        jsc_list = self.getAllJournalSelfCitations()
+        for jsc in jsc_list:
+            if jsc.getCitingEntry().getVenue() == journal_name and jsc.getCitedEntry().getVenue() == journal_name:
+                result.append(jsc)
+        return result
 
     def getCitationsOfBibEntityByTitleWithinDate(self, bib_entity_title:str, min_date:str, max_date:str) -> list:
         result = list()
