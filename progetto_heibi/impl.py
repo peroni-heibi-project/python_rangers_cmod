@@ -147,7 +147,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
                 FROM BibliographicEntity AS be
                 WHERE be.id LIKE ?
                 """
-        df = pd.read_sql(query, con, params=("%" + id + "%",))  
+                df = pd.read_sql(query, con, params=("%" + id + "%",))  
         return df
 
 
@@ -378,31 +378,36 @@ class CitationQueryHandler(QueryHandler):
             """
          
         data = self.convert_todf(query)
+        data = self.convert_todf(query)
+        if len(min) and len(max) == 0:
+            return data
+        else:
 
-        def normalize_string(d): #auxiliary function
-            if len(d) == 4:
-                d += "-01-01"
-            elif len(d) == 7:
-                d += "-01"
-            return d
-        
-        data["filter"] = data["creation"].apply(lambda x: normalize_string(x))
-        data["filter"] = pd.to_datetime(data["filter"], format = "%Y-%m-%d" )
+            def normalize_string(d): #auxiliary function
+                if len(d) == 4:
+                    d += "-01-01"
+                elif len(d) == 7:
+                    d += "-01"
+                return d
+            
+            data["filter"] = data["creation"].apply(lambda x: normalize_string(x))
+            data["filter"] = pd.to_datetime(data["filter"], format = "%Y-%m-%d" )
 
 
-        if min:
-            min_date = isodate.parse_date(min)
-            data = data.query(f"`filter` >= '{min_date}'")
+            if min:
+                min_date = isodate.parse_date(min)
+                data = data.query(f"`filter` >= '{min_date}'")
 
-        if max: 
-            if len(max) == 4:
-                max += "-12-31"
-            if len(max) == 7:
-                max += "-31"
-            data = data.query(f"`filter` <= '{max}'")
-        data = data.drop(columns=["filter"])
-        data = data.reset_index()
-        return data
+            if max: 
+                if len(max) == 4:
+                    max += "-12-31"
+                if len(max) == 7:
+                    max += "-31"
+                data = data.query(f"`filter` <= '{max}'")
+            data = data.drop(columns=["filter"])
+            data = data.reset_index()
+            return data
+
 
 
 class IdentifiableEntity():
