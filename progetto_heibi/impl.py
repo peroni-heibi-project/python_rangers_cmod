@@ -14,8 +14,8 @@ from sqlite3 import connect
 
 
 class Handler:
-    def __init__(self, dbPathOrUrl:str = ""):
-        self.dbPathOrUrl = dbPathOrUrl
+    def __init__(self):
+        self.dbPathOrUrl = ""
 
     def getDbPathOrUrl(self) -> str:
         return self.dbPathOrUrl
@@ -28,8 +28,8 @@ class Handler:
 
 
 class UploadHandler(Handler):
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+    def __init__(self):
+        super().__init__()
 
     def pushDataToDb(self, path) -> bool: 
         pass
@@ -38,8 +38,8 @@ class UploadHandler(Handler):
 #Ho modificato "cito:isAuthorSelfCitation" in "cito:AuthorSelfCitation" perché il predicato non corrispondeva con quello usato nel metodo getAllAuthorSelfCitations in CitationQueryHandler. Stessa cosa per "cito:isJournalSelfCitation". Ora è uniforme. 
     
 class CitationUploadHandler(UploadHandler):
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+    def __init__(self):
+        super().__init__()
     
     def pushDataToDb(self, path:str) -> bool:
         if type(path) == str:
@@ -79,8 +79,8 @@ class CitationUploadHandler(UploadHandler):
     
 class BibliographicEntityUploadHandler(UploadHandler):
 
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+    def __init__(self):
+        super().__init__()
 
     def pushDataToDb(self, path:str) -> bool:
         if type(path) == str:
@@ -118,8 +118,8 @@ class BibliographicEntityUploadHandler(UploadHandler):
         return False
 
 class QueryHandler(Handler):
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+    def __init__(self):
+        super().__init__()
 
     #we kept the implementation of the 2 getById's separate.
         
@@ -136,8 +136,8 @@ class BibliographicEntityQueryHandler(QueryHandler):
     #dal professore nel capitolo "Interacting with databases using Pandas".
     #"""
 
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+    def __init__(self):
+        super().__init__()
         
     def getById(self, id):
         with connect(self.dbPathOrUrl) as con:
@@ -228,8 +228,8 @@ class BibliographicEntityQueryHandler(QueryHandler):
 
     
 class CitationQueryHandler(QueryHandler):
-    def __init__(self, dbPathOrUrl:str = ""):
-        super().__init__(dbPathOrUrl)
+    def __init__(self):
+        super().__init__()
     
     def convert_todf(self, query):
         endpoint = self.dbPathOrUrl
@@ -406,19 +406,19 @@ class CitationQueryHandler(QueryHandler):
 
 
 class IdentifiableEntity():
-    def __init__(self, id:list):
-        self.id = id
+    def __init__(self):
+        self.id = list()
 
     def getIds(self) -> list:
         return self.id
 
 class BibliographicEntity(IdentifiableEntity):
-    def __init__(self, id:list, title:str = None, author:list = None, publication_date:str = None, venue:str = None):
-        self.title = title
-        self.author = author
-        self.publication_date = publication_date
-        self.venue = venue
-        super().__init__(id)
+    def __init__(self):
+        self.title = ""
+        self.author = list()
+        self.publication_date = ""
+        self.venue = ""
+        super().__init__()
 
     def getTitle(self) -> str:
         return self.title
@@ -434,12 +434,12 @@ class BibliographicEntity(IdentifiableEntity):
 
 
 class Citation(IdentifiableEntity):
-    def __init__(self, id:list, creation:str, timespan:str, hasCitingEntry:BibliographicEntity = None, hasCitedEntry:BibliographicEntity = None):
-        self.creation = creation
-        self.timespan = timespan
-        self.hasCitingEntry = hasCitingEntry
-        self.hasCitedEntry = hasCitedEntry
-        super().__init__(id)
+    def __init__(self):
+        self.creation = ""
+        self.timespan = ""
+        self.hasCitingEntry = None
+        self.hasCitedEntry = None
+        super().__init__()
 
     def getCreation(self) -> str:
         return self.creation
@@ -452,20 +452,20 @@ class Citation(IdentifiableEntity):
 
     def getCitedEntry(self) -> BibliographicEntity:
         return self.hasCitedEntry
-    
+
 class JournalSelfCitation(Citation):
-    def __init__(self, id:list, creation: str, timespan:str, hasCitingEntry:BibliographicEntity = None, hasCitedEntry:BibliographicEntity = None):
-        super().__init__(id, creation, timespan, hasCitingEntry, hasCitedEntry)
+    def __init__(self):
+        super().__init__()
 
 class AuthorSelfCitation(Citation):
-    def __init__(self, id:list, creation: str, timespan:str, hasCitingEntry:BibliographicEntity = None, hasCitedEntry:BibliographicEntity = None):
-        super().__init__(id, creation, timespan, hasCitingEntry, hasCitedEntry)
+    def __init__(self):
+        super().__init__()
 
 
 class BasicQueryEngine():
-    def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
-        self.citationQuery = citationQuery 
-        self.bibliographicEntityQuery = bibliographicEntityQuery
+    def __init__(self):
+        self.citationQuery = list()
+        self.bibliographicEntityQuery = list()
     
     def cleanCitationHandlers(self) -> bool:
         self.citationQuery = []
@@ -525,11 +525,12 @@ class BasicQueryEngine():
         auth = row["author"].split("; ") if row["author"] else None #separates the different authors
         i = row["id"].split("; ") #separates the different ids
 
-        bib_en = BibliographicEntity(title=row["title"], #constructs the BE class
-                                    author= auth,
-                                    id= i,
-                                    publication_date=row["pub_date"],
-                                    venue=row["venue"])
+        bib_en = BibliographicEntity() #constructs the BE class
+        bib_en.title += row["title"]
+        bib_en.author.extend(auth)
+        bib_en.id.extend(i)
+        bib_en.publication_date += row["pub_date"]
+        bib_en.venue += row["venue"]
         return bib_en
     
     def constructCitation(self, row:pd.Series) -> Citation:
@@ -542,28 +543,33 @@ class BasicQueryEngine():
         #the hasCitingEntry and hasCitedEntry parameters are created before the Citation class, and
         #constructBibliographicEntity cannot be called for them due to the column names being different
         if row["citing"]:
-            auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
-            i_citing = row["id_citing"].split("; ")
-            citing = BibliographicEntity(title=row["title_citing"],
-                                         author= auth_citing,
-                                         id= i_citing,
-                                         publication_date=row["pub_date_citing"],
-                                         venue=row["venue_citing"])
+                auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
+                i_citing = row["id_citing"].split("; ")
+
+                citing = BibliographicEntity()
+                citing.title += row["title_citing"]
+                citing.author.extend(auth_citing)
+                citing.id.extend(i_citing)
+                citing.publication_date += row["pub_date_citing"]
+                citing.venue += row["venue_citing"]
         
         if row["cited"]:
-            auth_cited = row["author_cited"].split("; ") if not row["author_cited"] else None
-            i_cited = row["id_cited"].split("; ")
-            cited = BibliographicEntity(title=row["title_cited"],
-                                        author= auth_cited,
-                                        id= i_cited,
-                                        publication_date=row["pub_date_cited"],
-                                        venue=row["venue_cited"])
+                auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
+                i_cited = row["id_cited"].split("; ")
+
+                cited = BibliographicEntity()
+                cited.title += row["title_cited"]
+                cited.author.extend(auth_cited)
+                cited.id.extend(i_cited)
+                cited.publication_date += row["pub_date_cited"]
+                cited.venue += row["venue_cited"]
         
-        cit = Citation(id=row["oci"], #constructs the Citation class
-                       creation=row["creation"],
-                       timespan=row["timespan"],
-                       hasCitingEntry=citing,
-                       hasCitedEntry=cited)
+        cit = Citation()
+        cit.id.extend(row["oci"])
+        cit.creation += row["creation"]
+        cit.timespan += row["timespan"]
+        cit.hasCitingEntry = citing
+        cit.hasCitedEntry = cited
         
         return cit
         
@@ -623,7 +629,7 @@ class BasicQueryEngine():
         full_df = self.setFullDataFrame(merge_be, merge_asc)
 
         for idx, row in full_df.iterrows():
-            
+
             citing = None
             cited = None
 
@@ -631,32 +637,33 @@ class BasicQueryEngine():
                 auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
                 i_citing = row["id_citing"].split("; ")
 
-                citing = BibliographicEntity(title=row["title_citing"],
-                                             author= auth_citing,
-                                             id= i_citing,
-                                             publication_date=row["pub_date_citing"],
-                                             venue=row["venue_citing"])
+                citing = BibliographicEntity()
+                citing.title += row["title_citing"]
+                citing.author.extend(auth_citing)
+                citing.id.extend(i_citing)
+                citing.publication_date += row["pub_date_citing"]
+                citing.venue += row["venue_citing"]
                 
             if row["cited"]:
 
                 auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
                 i_cited = row["id_cited"].split("; ")
 
-                cited = BibliographicEntity(title=row["title_cited"],
-                                            author= auth_cited,
-                                            id= i_cited,
-                                            publication_date=row["pub_date_cited"],
-                                            venue=row["venue_cited"])
+                cited = BibliographicEntity()
+                cited.title += row["title_cited"]
+                cited.author.extend(auth_cited)
+                cited.id.extend(i_cited)
+                cited.publication_date += row["pub_date_cited"]
+                cited.venue += row["venue_cited"]
             
-            asc = AuthorSelfCitation(id=row["oci"],
-                                     creation=row["creation"],
-                                     timespan=row["timespan"],
-                                     hasCitingEntry=citing,
-                                     hasCitedEntry=cited)
+            asc = AuthorSelfCitation()
+            asc.id.extend(row["oci"]),
+            asc.creation += row["creation"]
+            asc.timespan += row["timespan"]
+            asc.hasCitingEntry = citing
+            asc.hasCitedEntry = cited
 
             result.append(asc)
-
-        return result
 
     def getAllJournalSelfCitations(self) -> list:
         result = list()
@@ -685,28 +692,32 @@ class BasicQueryEngine():
                 auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
                 i_citing = row["id_citing"].split("; ")
 
-                citing = BibliographicEntity(title=row["title_citing"],
-                                             author= auth_citing,
-                                             id= i_citing,
-                                             publication_date=row["pub_date_citing"],
-                                             venue=row["venue_citing"])
+                citing = BibliographicEntity()
+                citing.title += row["title_citing"]
+                citing.author.extend(auth_citing)
+                citing.id.extend(i_citing)
+                citing.publication_date += row["pub_date_citing"]
+                citing.venue += row["venue_citing"]
                 
             if row["cited"]:
 
                 auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
                 i_cited = row["id_cited"].split("; ")
 
-                cited = BibliographicEntity(title=row["title_cited"],
-                                            author= auth_cited,
-                                            id= i_cited,
-                                            publication_date=row["pub_date_cited"],
-                                            venue=row["venue_cited"])
+                cited = BibliographicEntity()
+                cited.title += row["title_cited"]
+                cited.author.extend(auth_cited)
+                cited.id.extend(i_cited)
+                cited.publication_date += row["pub_date_cited"]
+                cited.venue += row["venue_cited"]
             
-            jsc = JournalSelfCitation(id=row["oci"],
-                                     creation=row["creation"],
-                                     timespan=row["timespan"],
-                                     hasCitingEntry=citing,
-                                     hasCitedEntry=cited)
+            jsc = JournalSelfCitation()
+            jsc.id.extend(row["oci"])
+            jsc.creation += row["creation"]
+            jsc.timespan += row["timespan"]
+            jsc.hasCitingEntry = citing
+            jsc.hasCitedEntry = cited
+
             result.append(jsc)
 
         return result
@@ -808,10 +819,10 @@ class BasicQueryEngine():
     
 
 class FullQueryEngine(BasicQueryEngine):
-    def __init__(self, citationQuery:list = [], bibliographicEntityQuery:list = []):
-        super().__init__(citationQuery, bibliographicEntityQuery)
+    def __init__(self):
+        super().__init__()
 
-    def getAuthorSelfCitationsByName(author_name:str) -> list:
+    def getAuthorSelfCitationsByName(self, author_name:str) -> list:
         result = list()
         asc_list = self.getAllAuthorSelfCitations()
         for asc in asc_list:
@@ -872,11 +883,11 @@ class FullQueryEngine(BasicQueryEngine):
                 for idx, row in df.iterrows():
                     citing = row["citing"]
                     if any(mid in citing for mid in matching_ids):
-                        cit = Citation(
-                            id=row["oci"],
-                            creation=row["creation"],
-                            timespan=row["timespan"]
-                        )
+                        cit = Citation()
+                        cit.id.extend(row["oci"])
+                        cit.creation=row["creation"]
+                        cit.timespan=row["timespan"]
+                        
                         result.append(cit)
         return result
 
