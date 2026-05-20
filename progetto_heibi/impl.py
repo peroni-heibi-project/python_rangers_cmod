@@ -120,54 +120,14 @@ class BibliographicEntityUploadHandler(UploadHandler):
 class QueryHandler(Handler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
+
+    #we kept the implementation of the 2 getById's separate.
         
     def getById(self, id) -> pd.DataFrame:
-        result = pd.DataFrame()
-        if (("omid" in id) or ("doi" in id) or ("openalex" in id) or ("isbn" in id)):
-            with connect(self.dbPathOrUrl) as con:
-                query = f"""
-                SELECT be.internalId, be.title, be.pub_date,
-                    ei.id
-                FROM BibliographicEntity AS be
-                WHERE ei.id = ?
-                """
-                df = pd.read_sql(query, con, params=(id,))  
-                if len(df) == 0:
-                    result = df  
-        else:
-            endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
-            query = f"""
-            prefix oci: <https://oci.opencitations.net/virtual/ci/>
-            prefix cito: <http://purl.org/spar/cito/>
-            SELECT ?oci ?citing ?cited ?creation ?timespan
-            WHERE 
-                {{?s rdfs:label '{id}' .
-                ?s cito:hasCreationDate ?creation .
-                ?s cito:hasTimespan ?timespan .
-                ?s cito:hasCitingEntity ?citing .
-                ?s cito:hasCitedEntity ?cited }}"""
-            
-            with SPARQLClient(endpoint) as client:
-                res = client.query(query)
-                variables = res["head"]["vars"]
-                rows = list()
-                for binding in res["results"]["bindings"]:
-                    row = dict()
-                    for var in variables:
-                        if var in binding:
-                            row[var] = binding[var]["value"]
-                        else:
-                            row[var] = ""
-                    rows.append(row)                   
-                df = pd.DataFrame(rows)
-                if len(df) > 0:
-                    result = df
-                    result["oci"] = id
-            return result 
-            
+        pass
+
     
-#pipi = QueryHandler
-#print(QueryHandler.getById(pipi, "lala"))            
+
 
 class BibliographicEntityQueryHandler(QueryHandler):
     #"""
@@ -178,6 +138,17 @@ class BibliographicEntityQueryHandler(QueryHandler):
 
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
+        
+    def getById(self, id):
+        with connect(self.dbPathOrUrl) as con:
+                query = f"""
+                SELECT be.internalId, be.title, be.pub_date,
+                    be.id
+                FROM BibliographicEntity AS be
+                WHERE be.id = ?
+                """
+        df = pd.read_sql(query, con, params=(id,))  
+        return df
 
 
     def getAllBibliographicEntities(self) -> pd.DataFrame:
@@ -259,10 +230,43 @@ class BibliographicEntityQueryHandler(QueryHandler):
 class CitationQueryHandler(QueryHandler):
     def __init__(self, dbPathOrUrl:str = ""):
         super().__init__(dbPathOrUrl)
+    
+    def convert_todf(self, query):
+        endpoint = self.dbPathOrUrl
+        with SPARQLClient(endpoint) as client:
+            res = client.query(query)
+            variables = res["head"]["vars"]
+            rows = list()
+            for binding in res["results"]["bindings"]:
+                row = dict()
+                for var in variables:
+                    if var in binding:
+                        row[var] = binding[var]["value"]
+                    else:
+                        row[var] = ""
+                rows.append(row)                   
+            df = pd.DataFrame(rows)
+            return df
 
+    def getById(self, id):
+        query = f"""
+        prefix oci: <https://oci.opencitations.net/virtual/ci/>
+        prefix cito: <http://purl.org/spar/cito/>
+        SELECT ?citing ?cited ?creation ?timespan
+        WHERE 
+            {{?s rdfs:label '{id}' .
+            ?s cito:hasCreationDate ?creation .
+            ?s cito:hasTimespan ?timespan .
+            ?s cito:hasCitingEntity ?citing .
+            ?s cito:hasCitedEntity ?cited }}"""
+        
+        df = self.convert_todf(query)
+        if len(df) > 0:
+            df["oci"] = id
+        return df
+       
 
     def getAllCitations(self) -> pd.DataFrame:
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f""" 
         PREFIX cito:<http://purl.org/spar/cito/>
         
@@ -274,23 +278,11 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:hasCitedEntity ?cited . 
             ?s cito:hasTimespan ?timespan}}
         """
-        with SPARQLClient(endpoint) as client:
-            result = client.query(query)
-        variables = result["head"]["vars"]
-        rows = list()
-        for binding in result["results"]["bindings"]:
-            row = dict()
-            for var in variables:
-                if var in binding:
-                    row[var] = binding[var]["value"]
-                else:
-                    row[var] = ""
-            rows.append(row)
-        return pd.DataFrame(rows)
+        result = self.convert_todf(query)
+        return result
 
 
     def getAllAuthorSelfCitations(self) -> pd.DataFrame:
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
             SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
@@ -304,22 +296,10 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:AuthorSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
         
-        with SPARQLClient(endpoint) as client:
-            result = client.query(query)
-            variables = result["head"]["vars"]
-            rows = list()
-            for binding in result["results"]["bindings"]:
-                row = dict()
-                for var in variables:
-                    if var in binding:
-                        row[var] = binding[var]["value"]
-                    else:
-                        row[var] = ""
-                rows.append(row)
-        return pd.DataFrame(rows)
+        result = self.convert_todf(query)
+        return result
     
     def getAllJournalSelfCitations(self) -> pd.DataFrame:
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = """ PREFIX cito:  <http://purl.org/spar/cito/>
                 
             SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
@@ -333,22 +313,11 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:JournalSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
         # Alice - Corretto "?s cito:hasCitationCreationDate" in "?s cito:hasCreationDate".
-        with SPARQLClient(endpoint) as client:
-            result = client.query(query)
-            variables = result["head"]["vars"]
-            rows = list()
-            for binding in result["results"]["bindings"]:
-                row = dict()
-                for var in variables:
-                    if var in binding:
-                        row[var] = binding[var]["value"]
-                    else:
-                        row[var] = ""
-                rows.append(row)
-        return pd.DataFrame(rows)
+
+        result = self.convert_todf(query)
+        return result
     
     def getCitationsWithinTimespan(self, beginning = "", end = "") -> pd.DataFrame:
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f""" 
         PREFIX cito:  <http://purl.org/spar/cito/>
         
@@ -360,56 +329,41 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:hasCitedEntity ?cited . 
             ?s cito:hasTimespan ?timespan}}
         """
-        with SPARQLClient(endpoint) as client:
-            response = client.query(query)
-            variables = response["head"]["vars"]
-            rows = list()
-            for binding in response["results"]["bindings"]:
-                row = dict()
-                for var in variables:
-                    if var in binding:
-                        row[var] = binding[var]["value"]
-                    else:
-                        row[var] = ""
-                rows.append(row)
-            result = pd.DataFrame(rows)
+        df = self.convert_todf(query)
 
-            def timespan_to_days(timespan):
-                days = 0
-                d = isodate.parse_duration(timespan)
-                if hasattr(d, "days"):
-                    days += d.days
-                if hasattr(d, "months"):
-                    days += (d.months * 30)
-                if hasattr(d, "years"):
-                    days += (d.years * 365)
-                return days
-            
-            t = timespan_to_days(row["timespan"])
+        def timespan_to_days(timespan):
+            days = 0
+            d = isodate.parse_duration(timespan)
+            if hasattr(d, "days"):
+                days += d.days
+            if hasattr(d, "months"):
+                days += (d.months * 30)
+            if hasattr(d, "years"):
+                days += (d.years * 365)
+            return int(days)        
 
-            if len(beginning) == 0 and len(end) == 0:
-                return result
-            
-            else:
-                if len(beginning) > 0:
-                    min = timespan_to_days(beginning)
-                    for idx, row in result.iterrows():
-                        if t < min:
-                            result.drop(idx, axis=0, inplace=True)
-                    result.reset_index(drop=True, inplace=True)
+        if len(beginning) == 0 and len(end) == 0:
+            return df
+        
+        else:
+            df["filter"] = df["timespan"].apply(lambda x: timespan_to_days(x))
 
-                if len(end) > 0:
-                    max = timespan_to_days(end)
-                    for idx, row in result.iterrows():
-                        t = timespan_to_days(row["timespan"])
-                        if t > max:
-                            result.drop(idx, axis=0, inplace=True)
-                    result.reset_index(drop=True, inplace=True)
-                return result
+            if len(beginning) > 0:
+                min = timespan_to_days(beginning)
+                df = df.query(f"`filter` > {min}")
+
+
+            if len(end) > 0:
+                max = timespan_to_days(end)
+                df = df.query(f"`filter` < {max}")
+
+            print(df["filter"])
+            df = df.reset_index(drop=True)
+            df = df.drop(columns=["filter"])
+            return df
             
             
     def getCitationsWithinDate(self, min = "", max = "") -> pd.DataFrame: 
-        endpoint = 'http://127.0.0.1:9999/blazegraph/sparql'
         query = f"""
             PREFIX cito:  <http://purl.org/spar/cito/>
             PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
@@ -422,42 +376,33 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:hasCitedEntity ?cited . 
             ?s cito:hasTimespan ?timespan}}
             """
-       
-        with SPARQLClient(endpoint) as client:
-            result = client.query(query)
-            variables = result["head"]["vars"]
-            rows = list()
-            for binding in result["results"]["bindings"]:
-                row = dict()
-                for var in variables:
-                    if var in binding:
-                        row[var] = binding[var]["value"]
-                    else:
-                        row[var] = ""
-                rows.append(row)
-            
-            data = pd.DataFrame(rows) 
+         
+        data = self.convert_todf(query)
 
-            def normalize_string(d):
-                if len(d) == 4:
-                    d += "-01-01"
-                elif len(d) == 7:
-                    d += "-01"
-                return d
+        def normalize_string(d):
+            if len(d) == 4:
+                d += "-01-01"
+            elif len(d) == 7:
+                d += "-01"
+            return d
+        
+        data["filter"] = data["creation"].apply(lambda x: normalize_string(x))
+        data["filter"] = pd.to_datetime(data["filter"], format = "%Y-%m-%d" )
 
-            for idx,row in data.iterrows():
-                date = normalize_string(row["creation"])
-                d = isodate.parse_date(date)
 
-                if min:
-                    min_date = isodate.parse_date(min)
-                    if min_date > d:
-                        data.drop(idx, axis = 0, inplace= True)
-                if max: 
-                    max_date = isodate.parse_date(max)
-                    if max_date < d:
-                        data.drop(idx, axis = 0, inplace= True)
-            return data
+        if min:
+            min_date = isodate.parse_date(min)
+            data.query(f"`filter` >= '{min_date}'")
+
+        if max: 
+            if len(max) == 4:
+                max += "-12-31"
+            if len(max) == 7:
+                max += "-31"
+            data.query(f"`filter` <= '{max}'")
+        data.drop(columns=["filter"])
+        data.reset_index()
+        return data
 
 
 class IdentifiableEntity():
