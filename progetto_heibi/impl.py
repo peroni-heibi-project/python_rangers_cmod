@@ -142,7 +142,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
     def getById(self, id):
         with connect(self.dbPathOrUrl) as con:
                 query = f"""
-                SELECT be.internalId, be.title, be.pub_date,
+                SELECT DISTINCT be.internalId, be.title, be.pub_date,
                     be.id
                 FROM BibliographicEntity AS be
                 WHERE be.id LIKE ?
