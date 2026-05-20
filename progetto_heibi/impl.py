@@ -392,16 +392,16 @@ class CitationQueryHandler(QueryHandler):
 
         if min:
             min_date = isodate.parse_date(min)
-            data.query(f"`filter` >= '{min_date}'")
+            data = data.query(f"`filter` >= '{min_date}'")
 
         if max: 
             if len(max) == 4:
                 max += "-12-31"
             if len(max) == 7:
                 max += "-31"
-            data.query(f"`filter` <= '{max}'")
-        data.drop(columns=["filter"])
-        data.reset_index()
+            data = data.query(f"`filter` <= '{max}'")
+        data = data.drop(columns=["filter"])
+        data = data.reset_index()
         return data
 
 
