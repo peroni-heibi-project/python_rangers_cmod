@@ -130,11 +130,11 @@ class QueryHandler(Handler):
 
 
 class BibliographicEntityQueryHandler(QueryHandler):
-    #"""
-    #Legge dal database SQLite e restituisce DataFrame pandas.
-    #Ogni metodo costruisce una query SQL ed esegue read_sql(), come mostrato
-    #dal professore nel capitolo "Interacting with databases using Pandas".
-    #"""
+    """
+    Legge dal database SQLite e restituisce DataFrame pandas.
+    Ogni metodo costruisce una query SQL ed esegue read_sql(), come mostrato
+    dal professore nel capitolo "Interacting with databases using Pandas".
+    """
 
     def __init__(self):
         super().__init__()
@@ -231,7 +231,7 @@ class CitationQueryHandler(QueryHandler):
     def __init__(self):
         super().__init__()
     
-    def convert_todf(self, query):
+    def convert_todf(self, query): #auxiliary function
         endpoint = self.dbPathOrUrl
         with SPARQLClient(endpoint) as client:
             res = client.query(query)
@@ -331,7 +331,7 @@ class CitationQueryHandler(QueryHandler):
         """
         df = self.convert_todf(query)
 
-        def timespan_to_days(timespan):
+        def timespan_to_days(timespan): #auxiliary function
             days = 0
             d = isodate.parse_duration(timespan)
             if hasattr(d, "days"):
@@ -379,7 +379,7 @@ class CitationQueryHandler(QueryHandler):
          
         data = self.convert_todf(query)
 
-        def normalize_string(d):
+        def normalize_string(d): #auxiliary function
             if len(d) == 4:
                 d += "-01-01"
             elif len(d) == 7:
@@ -437,8 +437,8 @@ class Citation(IdentifiableEntity):
     def __init__(self):
         self.creation = ""
         self.timespan = ""
-        self.hasCitingEntry = None
-        self.hasCitedEntry = None
+        self.hasCitingEntity = None
+        self.hasCitedEntity = None
         super().__init__()
 
     def getCreation(self) -> str:
@@ -447,11 +447,11 @@ class Citation(IdentifiableEntity):
     def getTimespan(self) -> str:
         return self.timespan
     
-    def getCitingEntry(self) -> BibliographicEntity:
-        return self.hasCitingEntry
+    def getCitingEntity(self) -> BibliographicEntity:
+        return self.hasCitingEntity
 
-    def getCitedEntry(self) -> BibliographicEntity:
-        return self.hasCitedEntry
+    def getCitedEntity(self) -> BibliographicEntity:
+        return self.hasCitedEntity
 
 class JournalSelfCitation(Citation):
     def __init__(self):
@@ -488,9 +488,9 @@ class BasicQueryEngine():
         return False
 
     
-    def setFullDataFrame(self, be_df:pd.DataFrame, cit_df:pd.DataFrame) -> pd.DataFrame:
+    def setFullDataFrame(self, be_df:pd.DataFrame, cit_df:pd.DataFrame) -> pd.DataFrame: #auxiliary function
         #method created to avoid repeating code on the constructors of Citation entities and their subclasses
-        #it merges the BE and Citation in a way that facilitates the creation of hasCitingEntry and hasCitedEntry
+        #it merges the BE and Citation in a way that facilitates the creation of hasCitingEntity and hasCitedEntity
         mom_be = be_df
         prefix = "https://opencitations.net/entity/"
         mom_be["internalId"] = mom_be["internalId"].apply(lambda x: prefix + x) #adds the prefix in front of the elements of the internalId column in the bibliographic entries dataframe,
@@ -520,7 +520,7 @@ class BasicQueryEngine():
 
         return full_df
     
-    def constructBibliographicEntity(self, row:pd.Series) -> BibliographicEntity:
+    def constructBibliographicEntity(self, row:pd.Series) -> BibliographicEntity: #auxiliary function
         #additional function made to avoid repetitions in the code
         auth = row["author"].split("; ") if row["author"] else None #separates the different authors
         i = row["id"].split("; ") #separates the different ids
@@ -533,14 +533,14 @@ class BasicQueryEngine():
         bib_en.venue += row["venue"]
         return bib_en
     
-    def constructCitation(self, row:pd.Series) -> Citation:
+    def constructCitation(self, row:pd.Series) -> Citation: #auxiliary function
         #additional function made to avoid repetitions in the code
-        #the row in input comes from a dataframe that has been selectfully merged to facilitate the creation of hasCitingEntry and hasCitedEntry
+        #the row in input comes from a dataframe that has been selectfully merged to facilitate the creation of hasCitingEntity and hasCitedEntity
         
         citing = None #citing and cited are None by default in case the Citation doesn't have either
         cited = None
 
-        #the hasCitingEntry and hasCitedEntry parameters are created before the Citation class, and
+        #the hasCitingEntity and hasCitedEntity parameters are created before the Citation class, and
         #constructBibliographicEntity cannot be called for them due to the column names being different
         if row["citing"]:
                 auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
@@ -568,8 +568,8 @@ class BasicQueryEngine():
         cit.id.extend(row["oci"])
         cit.creation += row["creation"]
         cit.timespan += row["timespan"]
-        cit.hasCitingEntry = citing
-        cit.hasCitedEntry = cited
+        cit.hasCitingEntity = citing
+        cit.hasCitedEntity = cited
         
         return cit
         
@@ -593,7 +593,7 @@ class BasicQueryEngine():
                 for item in ci_qhandler:
                     merge_cit = pd.concat([df_ci, item.getAllCitations()]) #the dataframes of the different CQHs are merged into one
 
-                full_df = self.setFullDataFrame(merge_be, merge_cit) #the BE and Citation dataframes are merged in a way that facilitates the creation of hasCitingEntry and hasCitedEntry
+                full_df = self.setFullDataFrame(merge_be, merge_cit) #the BE and Citation dataframes are merged in a way that facilitates the creation of hasCitingEntity and hasCitedEntity
 
                 for idx, row_ci in full_df.iterrows():
                     if id in row_ci["oci"]: #find the row with the right id
@@ -604,10 +604,21 @@ class BasicQueryEngine():
 
     def getAllCitations(self) -> list:
         result = list()
-        for handler in self.citationQuery:
-            if handler:
-                df = handler.getAllCitations()
-                result.extend(self.constructCitationList(df))
+
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        ci_qhandler = self.citationQuery
+        df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_ci = pd.concat([df_ci, item.getAllCitations()]) #selects the all of the Citation elements using a CQH method
+
+        final_df = self.setFullDataFrame(merge_be, merge_ci)
+
+        for idx, row in final_df.iterrows():
+                result.append(self.constructCitation(row))
         return result
 
     def getAllAuthorSelfCitations(self) -> list:
@@ -660,8 +671,8 @@ class BasicQueryEngine():
             asc.id.extend(row["oci"]),
             asc.creation += row["creation"]
             asc.timespan += row["timespan"]
-            asc.hasCitingEntry = citing
-            asc.hasCitedEntry = cited
+            asc.hasCitingEntity = citing
+            asc.hasCitedEntity = cited
 
             result.append(asc)
 
@@ -715,8 +726,8 @@ class BasicQueryEngine():
             jsc.id.extend(row["oci"])
             jsc.creation += row["creation"]
             jsc.timespan += row["timespan"]
-            jsc.hasCitingEntry = citing
-            jsc.hasCitedEntry = cited
+            jsc.hasCitingEntity = citing
+            jsc.hasCitedEntity = cited
 
             result.append(jsc)
 
@@ -724,21 +735,43 @@ class BasicQueryEngine():
 
     def getCitationsWithinTimespan(self, min_timespan:str, max_timespan:str) -> list:
         result = list()
-        for handler in self.citationQuery:
-            if handler:
-                df = handler.getCitationsWithinTimespan(min_timespan, max_timespan)
-                result.extend(self.constructCitationList(df))
+
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        ci_qhandler = self.citationQuery
+        df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_ci = pd.concat([df_ci, item.getCitationsWithinTimespan(min_timespan, max_timespan)]) #selects the interested elements using a CQH method
+
+        final_df = self.setFullDataFrame(merge_be, merge_ci)
+
+        for idx, row in final_df.iterrows():
+                result.append(self.constructCitation(row))
         return result
 
     def getCitationsWithinDate(self, start_date:str, end_date:str) -> list:
         result = list()
-        for handler in self.citationQuery:
-            if handler:
-                df = handler.getCitationsWithinDate(start_date, end_date)
-                result.extend(self.constructCitationList(df))
+
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = pd.DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = pd.concat([df_be, item.getAllBibliographicEntities()])
+
+        ci_qhandler = self.citationQuery
+        df_ci = pd.DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_ci = pd.concat([df_ci, item.getCitationsWithinDate(start_date, end_date)]) #selects the interested elements using a CQH method
+
+        final_df = self.setFullDataFrame(merge_be, merge_ci)
+
+        for idx, row in final_df.iterrows():
+                result.append(self.constructCitation(row))
         return result
 
-    def constructBibliographicEntityList(self, df:pd.DataFrame) -> list:
+    def constructBibliographicEntityList(self, df:pd.DataFrame) -> list: #da cancellare
         #additional function made to avoid repetitions in the code
         #Andrea: da togliere non appena la sostituiamo nelle altre funzioni
         list_of_be = list()
@@ -755,7 +788,7 @@ class BasicQueryEngine():
             list_of_be.append(bib_en)
         return list_of_be
         
-    def constructCitationList(self, df:pd.DataFrame) -> list:
+    def constructCitationList(self, df:pd.DataFrame) -> list: #da cancellare
         list_of_ci = list()
         for idx, row in df.iterrows():
             cit = Citation(id=row["oci"], creation=row["creation"], timespan=row["timespan"])
@@ -826,7 +859,7 @@ class FullQueryEngine(BasicQueryEngine):
         result = list()
         asc_list = self.getAllAuthorSelfCitations()
         for asc in asc_list:
-            if author_name in asc.getCitingEntry().getAuthors() and author_name in asc.getCitedEntry().getAuthors():
+            if author_name in asc.getCitingEntity().getAuthors() and author_name in asc.getCitedEntity().getAuthors():
                 result.append(asc)
         return result
 
@@ -834,7 +867,7 @@ class FullQueryEngine(BasicQueryEngine):
         result = list()
         jsc_list = self.getAllJournalSelfCitations() #gets a list of all JSC classes present in the dataframe
         for jsc in jsc_list:
-            if jsc.getCitingEntry().getVenue() == journal_name and jsc.getCitedEntry().getVenue() == journal_name: #checks if the venues of getCitingEntry and getCitedEntry are the same
+            if jsc.getCitingEntity().getVenue() == journal_name and jsc.getCitedEntity().getVenue() == journal_name: #checks if the venues of getCitingEntity and getCitedEntity are the same
                 result.append(jsc)
         return result
 
@@ -861,7 +894,7 @@ class FullQueryEngine(BasicQueryEngine):
             row_cit = new_df.loc[[idx], ("oci", "creation", "citing", "cited", "timespan")]
 
             ci = self.constructCitationList(row_cit)[0]
-            ci.hasCitedEntry = self.constructBibliographicEntityList(row_be)[0]
+            ci.hasCitedEntity = self.constructBibliographicEntityList(row_be)[0]
             result.append(ci)  
         return result
 
