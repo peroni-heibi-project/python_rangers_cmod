@@ -145,9 +145,9 @@ class BibliographicEntityQueryHandler(QueryHandler):
                 SELECT be.internalId, be.title, be.pub_date,
                     be.id
                 FROM BibliographicEntity AS be
-                WHERE be.id = ?
+                WHERE be.id LIKE ?
                 """
-        df = pd.read_sql(query, con, params=(id,))  
+        df = pd.read_sql(query, con, params=("%" + id + "%",))  
         return df
 
 
