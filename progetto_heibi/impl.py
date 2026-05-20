@@ -350,12 +350,12 @@ class CitationQueryHandler(QueryHandler):
 
             if len(beginning) > 0:
                 min = timespan_to_days(beginning)
-                df = df.query(f"`filter` > {min}")
+                df = df.query(f"`filter` >= {min}")
 
 
             if len(end) > 0:
                 max = timespan_to_days(end)
-                df = df.query(f"`filter` < {max}")
+                df = df.query(f"`filter` <= {max}")
 
             print(df["filter"])
             df = df.reset_index(drop=True)
