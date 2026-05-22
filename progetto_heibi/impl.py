@@ -316,18 +316,7 @@ class CitationQueryHandler(QueryHandler):
         return result
     
     def getCitationsWithinTimespan(self, beginning = "", end = "") -> DataFrame:
-        query = f""" 
-        PREFIX cito:  <http://purl.org/spar/cito/>
-        
-        SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
-        WHERE {{ 
-            ?s cito:hasCreationDate ?creation .
-            ?s rdfs:label ?oci .
-            ?s cito:hasCitingEntity ?citing . 
-            ?s cito:hasCitedEntity ?cited . 
-            ?s cito:hasTimespan ?timespan}}
-        """
-        df = self.convert_todf(query)
+        df = self.getAllCitations()
 
         def timespan_to_days(timespan): #auxiliary function
             days = 0
@@ -360,24 +349,10 @@ class CitationQueryHandler(QueryHandler):
             
             
     def getCitationsWithinDate(self, min = "", max = "") -> DataFrame: 
-        query = f"""
-            PREFIX cito:  <http://purl.org/spar/cito/>
-            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-
-            SELECT DISTINCT ?oci ?creation ?citing ?cited ?timespan
-            WHERE {{ 
-            ?s cito:hasCreationDate ?creation .
-            ?s rdfs:label ?oci .
-            ?s cito:hasCitingEntity ?citing . 
-            ?s cito:hasCitedEntity ?cited . 
-            ?s cito:hasTimespan ?timespan}}
-            """
-         
-        data = self.convert_todf(query)
+        data = self.getAllCitations()
         if len(min) == 0 and len(max) == 0:
             return data
         else:
-
             def normalize_string(d): #auxiliary function
                 if len(d) == 4:
                     d += "-01-01"
