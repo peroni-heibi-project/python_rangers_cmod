@@ -541,7 +541,7 @@ class BasicQueryEngine():
                     cited = row["cited"]
         
         cit = class_to_construct()
-        if row["oci"]: cit.id.extend(row["oci"])
+        if row["oci"]: cit.id.extend([row["oci"]])
         if row["creation"]: cit.creation += row["creation"]
         if row["timespan"]: cit.timespan += row["timespan"]
         if row["citing"]: cit.hasCitingEntity = citing
@@ -614,35 +614,25 @@ class BasicQueryEngine():
     def getAllAuthorSelfCitations(self) -> list:
         result = list()
 
-        #most of the following code is almost identical to a Citation constructors, but due to the
-        #final class to be costructed being different, the method constructCitation cannot be called
-        
-        if self.bibliographicEntityQuery:
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = concat([df_be, item.getAllBibliographicEntities()])
 
-            be_qhandler = self.bibliographicEntityQuery
-            df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
-            for item in be_qhandler:
-                merge_be = concat([df_be, item.getAllBibliographicEntities()])
+        ci_qhandler = self.citationQuery
+        df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_asc = concat([df_ci, item.getAllAuthorSelfCitations()]) #selects the interested elements using a CQH method
 
-        if self.citationQuery:
+        full_df = self.setFullDataFrame(merge_be, merge_asc)
 
-            ci_qhandler = self.citationQuery
-            df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
-            for item in ci_qhandler:
-                merge_asc = concat([df_ci, item.getAllAuthorSelfCitations()]) #selects the interested elements using a CQH method
-
-            full_df = self.setFullDataFrame(merge_be, merge_asc)
-
-            for idx, row in full_df.iterrows():
-                result.append(self.constructCitation(row, AuthorSelfCitation))
+        for idx, row in full_df.iterrows():
+            result.append(self.constructCitation(row, AuthorSelfCitation))
 
         return result
 
     def getAllJournalSelfCitations(self) -> list:
         result = list()
-
-        #most of the following code is almost identical to a Citation constructors, but due to the
-        #final class to be costructed being different, the method constructCitation cannot be called
 
         be_qhandler = self.bibliographicEntityQuery
         df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
@@ -767,7 +757,13 @@ class BasicQueryEngine():
         for idx, row in merge_be.iterrows():
             result.append(self.constructBibliographicEntity(row))
         return result
-    
+
+    def countInstances(self, df:DataFrame, column:str, item:str): #auxilary function used only for testing
+        counter = 0
+        for idx, row in df.iterrows():
+            if item in row[column]:
+                counter += 1
+        return counter
 
 class FullQueryEngine(BasicQueryEngine):
     def __init__(self):
