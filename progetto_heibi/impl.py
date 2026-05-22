@@ -604,12 +604,12 @@ class BasicQueryEngine():
                     for idx, row_ci in full_df.iterrows():
                         if id in row_ci["oci"]: #find the row with the right id
                             id_class = Citation
-                            if row["author_citing"] == row["author_cited"]:
+                            if row_ci["author_citing"] == row_ci["author_cited"]:
                                 id_class = AuthorSelfCitation
-                            elif row["venue_citing"] == row["venue_cited"]:
+                            elif row_ci["venue_citing"] == row_ci["venue_cited"]:
                                 id_class = JournalSelfCitation
                             return self.constructCitation(row_ci, id_class)
-
+                    #Alice - adjusted row and turned it into row_ci everytime it was called out, because of typos
         return None
       
 
