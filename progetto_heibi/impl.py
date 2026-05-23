@@ -8,9 +8,7 @@ from json import load
 from sqlite3 import connect
 
 
-
 #java -server -Xmx1g -jar blazegraph.jar
-
 
 
 class Handler:
@@ -35,7 +33,7 @@ class UploadHandler(Handler):
         pass
 
 # CitationUploadHandler is responsible for loading citation data from the dh_citations.csv file onto the Blazegraph database using SPARQL INSERT DATA queries.
-#each row in the CSV becmone one RDF subject with multiple predicates
+# each row in the CSV becmone one RDF subject with multiple predicates
 class CitationUploadHandler(UploadHandler):
     def __init__(self):
         super().__init__()
@@ -519,7 +517,7 @@ class BasicQueryEngine():
                                               "id":"id_cited"})
             
             full_df = merge(full_df, cited_df, left_on="cited", right_on="internalId_cited", how="inner") #merges the Citations dataframe with a BE one on the "cited" column,
-                                                                                                    #and the columns of the latter have been modified to make them recognizable
+                                                                                                          #and the columns of the latter have been modified to make them recognizable
         else: # in case the BE database is empty, it still manually adds the id_citing and id_cited columns, so that they can be added  to the Ids of the respective BEs
             df_cit = cit_df
             df_empty = DataFrame(columns=["oci", "creation", "citing","id_citing", "cited", "id_cited", "timespan"])
@@ -528,7 +526,7 @@ class BasicQueryEngine():
     
     def constructBibliographicEntity(self, row:Series) -> BibliographicEntity: #auxiliary function
         #additional function made to avoid repetitions in the code
-        auth = row["author"].split("; ") if type(row["author"]) == str  else None#separates the different authors
+        auth = row["author"].split("; ") if row["author"] and type(row["author"]) == str  else None #separates the different authors
         i = row["id"].split("; ") #separates the different ids
 
         bib_en = BibliographicEntity() #constructs the BE class
@@ -605,7 +603,7 @@ class BasicQueryEngine():
 
             if not merge_be.empty:
                 for idx, row in merge_be.iterrows():
-                    return self.constructBibliographicEntity(row) # returns the correct instance if it finds one
+                    return self.constructBibliographicEntity(row) # returns the correct BE instance if it finds one
                         
             else:
                 ci_qhandler = self.citationQuery
@@ -623,7 +621,7 @@ class BasicQueryEngine():
 
                     for idx, row_ci in full_df.iterrows():
                         if id in row_ci["oci"]: # finds the row with the right id
-                            return self.constructCitation(row_ci) # constructs the Citation instance
+                            return self.constructCitation(row_ci) # constructs the Citation instance if it find one
         return None
         
     def getAllCitations(self) -> list: # The method retrieves all citations from Blazegraph, merges them with bibliographic entity data from SQLite to populate hasCitingEntity and hasCitedEntity, and returns a list of Citation objects.
@@ -670,7 +668,7 @@ class BasicQueryEngine():
         return result
 
     def getAllJournalSelfCitations(self) -> list: # Works like getAllAuthorSelfCitations but for
-    # journal self-citations, constructing JournalSelfCitation objects
+                                                  # journal self-citations, constructing JournalSelfCitation objects
         result = list()
         merge_be = DataFrame()
         be_qhandler = self.bibliographicEntityQuery
@@ -738,7 +736,7 @@ class BasicQueryEngine():
         df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
         for item in be_qhandler:
             merge_be = concat([df_be, item.getAllBibliographicEntities()])  # This passage joins the citation DataFrame with the bibliographic entity Dataframe twice:
-                                                                            #once on the citing column and once on the cited. Result is a single DataFrame.
+                                                                            # once on the citing column and once on the cited. Result is a single DataFrame.
 
         for idx, row in merge_be.iterrows():
             result.append(self.constructBibliographicEntity(row)) # creates an instance from each row and adds it to the list in output
@@ -847,7 +845,7 @@ class FullQueryEngine(BasicQueryEngine):
 
     def getCitationsOfBibEntityByTitleWithinDate(self, bib_entity_title:str, min_date:str = "", max_date:str = "") -> list:
         #for this one, since only a parameter in the cited entity needs to be selected, the merge of the Citation and BE dataframes is done manually,
-        #instead of calling the function getAllJournalSelfCitations
+        #instead of calling the function setFullDataFrame
         
         result = list()
         be_qhandler = self.bibliographicEntityQuery
@@ -891,7 +889,7 @@ class FullQueryEngine(BasicQueryEngine):
 
     def getReferencesOfBibEntityByTitleWithinTimespan(self, bib_entity_title:str, min_timespan:str = "", max_timespan:str = "") -> list:
         #for this one, since only a parameter in the cited entity needs to be selected, the merge of the Citation and BE dataframes is done manually,
-        #instead of calling the function getAllJournalSelfCitations
+        #instead of calling the function setFullDataFrame
         result = list()
         be_qhandler = self.bibliographicEntityQuery
         df_be_citing = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
