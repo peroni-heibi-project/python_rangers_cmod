@@ -34,7 +34,8 @@ class UploadHandler(Handler):
     def pushDataToDb(self, path) -> bool: 
         pass
 
-
+# CitationUploadHandler is responsible for loading citation data from the dh_citations.csv file onto the Blazegraph database using SPARQL INSERT DATA queries.
+#each row in the CSV becmone one RDF subject with multiple predicates
 class CitationUploadHandler(UploadHandler):
     def __init__(self):
         super().__init__()
@@ -47,12 +48,11 @@ class CitationUploadHandler(UploadHandler):
             sparql.setMethod("POST")
 
             for _, row in df.iterrows():
-                #Alice - ho aggiunto il controllo dati obbligatori che dicevamo con Silvia. Tutti i dati del Citation sono obbligatori,
-                #se anche solo uno è vuoto, la riga non rispetta i requisiti e non viene caricata nel database, come ci diceva Ivan.
-                if not (row["oci"] and row["citing"] and row["cited"] and row["creation"] and row["timespan"] and row ["journal_sc"] and row ["author_sc"]):
-                    continue
+                if not (row["oci"] and row["citing"] and row["cited"] and row["creation"] and row["timespan"] and row ["journal_sc"] and row ["author_sc"]): # This is a check for mandatory fields: according to the data model, all 7 fields of a Citation are required. IF even 1 is missing, the row does not conform and must not be loaded.
+                    continue # This skips the row with missing elements and moves onto the next one.
                     
                 citation_uri = f"https://opencitations.net/citation/{row['oci']}"
+                # Build the SPARQL INSERT DATA query. Each triple follows the Turtle syntax: subject ; predicate value .
                 query = f"""
                 PREFIX cito: <http://purl.org/spar/cito/>
                 PREFIX datacite: <http://purl.org/spar/datacite/>
@@ -70,7 +70,10 @@ class CitationUploadHandler(UploadHandler):
                         cito:AuthorSelfCitation "{row['author_sc']}"^^xsd:string . 
                 }}
                 """
-                    
+                    # rdfs:label stores the OCI string so it can be retrieved later with SELECT queries.
+                # hasCitingEntity and hasCitedEntity are stored as full URIs (not literals), so they can be matched against the internalId column in SQLite during the merge.
+                # All other fields are stored as xsd:string literals.
+                
                 sparql.setQuery(query)
                 sparql.query()
             return True
@@ -311,7 +314,7 @@ class CitationQueryHandler(QueryHandler):
             ?s cito:JournalSelfCitation  ?journal_sc . 
             ?s cito:JournalSelfCitation 'yes' .
             ?s rdfs:label ?label}}"""
-        # Alice - Corretto "?s cito:hasCitationCreationDate" in "?s cito:hasCreationDate".
+        #   - Corretto "?s cito:hasCitationCreationDate" in "?s cito:hasCreationDate".
 
         result = self.convert_todf(query)
         return result
@@ -595,14 +598,13 @@ class BasicQueryEngine():
                                 elif row_ci["venue_citing"] == row_ci["venue_cited"]:
                                     id_class = JournalSelfCitation
                             return self.constructCitation(row_ci, id_class)
-                    #Alice - adjusted row and turned it into row_ci everytime it was called out, because of typos
         return None
         
-    def getAllCitations(self) -> list:
+    def getAllCitations(self) -> list: # The method retrieves all citations from Blazegraph, merges them with bibliographic entity data from SQLite to populate hasCitingEntity and hasCitedEntity, and returns a list of Citation objects.
         result = list()
         be_qhandler = self.bibliographicEntityQuery
         merge_be = DataFrame()
-        df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"]) # Load all bibliographic entities from SQLite.
         if be_qhandler:
             for item in be_qhandler:
                 merge_be = concat([df_be, item.getAllBibliographicEntities()])
@@ -612,13 +614,13 @@ class BasicQueryEngine():
         for item in ci_qhandler:
             merge_ci = concat([df_ci, item.getAllCitations()]) #selects all of the Citation elements using a CQH method
 
-        final_df = self.setFullDataFrame(merge_be, merge_ci)
+        final_df = self.setFullDataFrame(merge_be, merge_ci) # This passage joins the citation DataFrame with the bibliographic entity Dataframe twice: once on the citing column and once on the cited. Result is a single DataFrame.
 
         for idx, row in final_df.iterrows():
                 result.append(self.constructCitation(row))
         return result
 
-    def getAllAuthorSelfCitations(self) -> list:
+    def getAllAuthorSelfCitations(self) -> list: # Works like getAllCitations but only retrieves citations flagged as author self-citations in Blazegraph and constructs AuthorSelfCitation objects.
         result = list()
         merge_be = DataFrame()
         be_qhandler = self.bibliographicEntityQuery
@@ -639,7 +641,8 @@ class BasicQueryEngine():
 
         return result
 
-    def getAllJournalSelfCitations(self) -> list:
+    def getAllJournalSelfCitations(self) -> list: # Works like getAllAuthorSelfCitations but for
+    # journal self-citations, constructing JournalSelfCitation objects
         result = list()
         merge_be = DataFrame()
         be_qhandler = self.bibliographicEntityQuery
@@ -660,7 +663,7 @@ class BasicQueryEngine():
 
         return result
 
-    def getCitationsWithinTimespan(self, min_timespan:str = "", max_timespan:str = "") -> list:
+    def getCitationsWithinTimespan(self, min_timespan:str = "", max_timespan:str = "") -> list: #retrieves all citations whose timespan falls between min_timespan and max_timespan.
         result = list()
         merge_be = DataFrame()
         be_qhandler = self.bibliographicEntityQuery
@@ -680,7 +683,8 @@ class BasicQueryEngine():
                 result.append(self.constructCitation(row))
         return result
 
-    def getCitationsWithinDate(self, start_date:str = "", end_date:str = "") -> list:
+    def getCitationsWithinDate(self, start_date:str = "", end_date:str = "") -> list: # Retrieves all citations whose creation date falls
+    # between start_date and end_date.
         result = list()
         merge_be = DataFrame()
         be_qhandler = self.bibliographicEntityQuery
