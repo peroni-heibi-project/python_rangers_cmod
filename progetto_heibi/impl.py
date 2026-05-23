@@ -147,7 +147,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
                 FROM BibliographicEntity 
                 WHERE ',' || id || ',' LIKE '%,' || ? || ',%'
             """
-            df = read_sql(query, con, params=(id,))  
+            df = read_sql(query, con, params=("%" + id + "%",))  
         return df
 
 
@@ -500,15 +500,19 @@ class BasicQueryEngine():
     
     def constructBibliographicEntity(self, row:Series) -> BibliographicEntity: #auxiliary function
         #additional function made to avoid repetitions in the code
-        auth = row["author"].split("; ") if row["author"] else None #separates the different authors
+        auth = row["author"].split("; ") if type(row["author"]) == str  else None#separates the different authors
         i = row["id"].split("; ") #separates the different ids
 
         bib_en = BibliographicEntity() #constructs the BE class
-        if row["title"]: bib_en.title += row["title"]
-        if row["author"]: bib_en.author.extend(auth)
+        if type(row["title"]) == str: 
+            bib_en.title += row["title"]
+        if type(row["author"]) == str: 
+            bib_en.author.extend(auth)
         bib_en.id.extend(i)
-        if row["pub_date"]: bib_en.publication_date += row["pub_date"]
-        if row["venue"]: bib_en.venue += row["venue"]
+        if type(row["pub_date"]) == str: 
+            bib_en.publication_date += row["pub_date"]
+        if type(row["venue"]) == str: 
+            bib_en.venue += row["venue"]
 
         return bib_en
     
@@ -519,7 +523,7 @@ class BasicQueryEngine():
         #the hasCitingEntity and hasCitedEntity parameters are created before the Citation class, and
         #constructBibliographicEntity cannot be called for them due to the column names being different
         citing = BibliographicEntity()
-        if type(row["id_citing"]) == list:
+        if type(row["id_citing"]) == str:
             auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
             i_citing = row["id_citing"].split("; ")
 
@@ -532,16 +536,15 @@ class BasicQueryEngine():
             citing.id.extend([row["citing"]])
         
         cited = BibliographicEntity()
-        if type(row["id_cited"]) == list:
+        if type(row["id_cited"]) == str:
             auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
             i_cited = row["id_cited"].split("; ")
 
-            cited = BibliographicEntity()
             if row["title_cited"]: cited.title += row["title_cited"]
             if row["author_cited"]: cited.author.extend(auth_cited)
             cited.id.extend(i_cited)
             if row["pub_date_cited"]: cited.publication_date += row["pub_date_cited"]
-            if row["venue_cited"]: cited.venue += row["venue_cited"]
+            if type(row["venue_cited"]) == str: cited.venue += row["venue_cited"]
         else:
             cited.id.extend([row["cited"]])
         
@@ -556,14 +559,13 @@ class BasicQueryEngine():
     
     def getEntityById(self, id:str):
         if id:
-    
             be_qhandler = self.bibliographicEntityQuery #the BEQH list is initiated by default, since both constructors make use of the BE dataframe
             df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"]) #an empty dataframe is created, only having the column names
             merge_be = DataFrame()
-
-            for item in be_qhandler:
-                    merge_be = concat([df_be, item.getById(id)]) #the dataframes of the different BEQHs are merged into one
-                
+            
+            if be_qhandler:
+                for item in be_qhandler:
+                        merge_be = concat([df_be, item.getById(id)]) #the dataframes of the different BEQHs are merged into one  
 
             if not merge_be.empty:
                 for idx, row in merge_be.iterrows():
@@ -587,7 +589,7 @@ class BasicQueryEngine():
                     for idx, row_ci in full_df.iterrows():
                         if id in row_ci["oci"]: #find the row with the right id
                             id_class = Citation
-                            if type(row["id_citing"]) == list:
+                            if type(row_ci["id_citing"]) == str:
                                 if row_ci["author_citing"] == row_ci["author_cited"]:
                                     id_class = AuthorSelfCitation
                                 elif row_ci["venue_citing"] == row_ci["venue_cited"]:
@@ -799,7 +801,6 @@ class FullQueryEngine(BasicQueryEngine):
 
     def getJournalSelfCitationsByName(self, journal_name:str) -> list:
         result = list()
-
         be_qhandler = self.bibliographicEntityQuery
         df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
         for item in be_qhandler:
@@ -897,4 +898,3 @@ class FullQueryEngine(BasicQueryEngine):
         for idx, row in full_df.iterrows():
             result.append(self.constructCitation(row))
         return result
-
