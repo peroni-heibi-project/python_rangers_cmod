@@ -3,11 +3,11 @@ from SPARQLWrapper import SPARQLWrapper, POST
 from sparqlite import SPARQLClient
 from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 import isodate
+from calendar import monthrange
 from json import load
 from sqlite3 import connect
 
 
-#CIAO!
 
 #java -server -Xmx1g -jar blazegraph.jar
 
@@ -92,7 +92,7 @@ class BibliographicEntityUploadHandler(UploadHandler):
         if type(path) == str:
             # The JSON file is opened and parsed into a list, where each element is a dictionary representing one bibliographic record
             with open(path, "r", encoding="utf-8") as f:
-                data = load(f)   # list of bibliographic records
+                data = load(f)   # lista di dizionari
             
             # A list is used to collect one dictionary per record before converting to a DataFrame 
             rows_entity    = list()
@@ -160,13 +160,17 @@ class BibliographicEntityQueryHandler(QueryHandler):
     def getById(self, id) -> DataFrame:
         #the query basically adds commas when they are not already present, in order to select the id 
         #where it is present.
+        if id[-1] == ";":
+            id += " "
         with connect(self.dbPathOrUrl) as con:
             query = """
                 SELECT DISTINCT internalId, title, pub_date, id
                 FROM BibliographicEntity 
-                WHERE ',' || id || ',' LIKE '%,' || ? || ',%'
+                WHERE '; ' || id || '; ' LIKE '; ' || ? || ';%'
             """
-            df = read_sql(query, con, params=("%" + id + "%",))  
+
+            df = read_sql(query, con, params=(id ,))  
+
         return df
 
 
@@ -340,6 +344,7 @@ class CitationQueryHandler(QueryHandler):
     
     def getCitationsWithinTimespan(self, beginning = "", end = "") -> DataFrame:
         df = self.getAllCitations()
+        #starts with all the citations, filters on python
 
         def timespan_to_days(timespan): #auxiliary function
             days = 0
@@ -383,7 +388,7 @@ class CitationQueryHandler(QueryHandler):
                     d += "-01"
                 return d
             
-            data["filter"] = data["creation"].apply(lambda x: normalize_string(x))
+            data["filter"] = data["creation"].apply(lambda x: normalize_string(x)) #uniforming the dates in the YYY MM DD format
             data["filter"] = to_datetime(data["filter"], format = "%Y-%m-%d" )
 
 
@@ -394,11 +399,13 @@ class CitationQueryHandler(QueryHandler):
             if max: 
                 if len(max) == 4:
                     max += "-12-31"
-                if len(max) == 7:
-                    max += "-31"
+                if len(max) == 7: #used a little function to select the last day of the month.
+                    year, month = int(max[:4]), int(max[5:7])
+                    last_day = monthrange(year, month)[1]
+                    max += "-" + str(last_day).zfill(2)
                 data = data.query(f"`filter` <= '{max}'")
             data = data.drop(columns=["filter"])
-            data = data.reset_index()
+            data = data.reset_index(drop=True)
             return data
 
 
@@ -617,7 +624,7 @@ class BasicQueryEngine():
 
                     for idx, row_ci in full_df.iterrows():
                         if id in row_ci["oci"]: # finds the row with the right id
-                            return self.constructCitation(row_ci, id_class) # constructs the Citation instance
+                            return self.constructCitation(row_ci) # constructs the Citation instance
         return None
         
     def getAllCitations(self) -> list: # The method retrieves all citations from Blazegraph, merges them with bibliographic entity data from SQLite to populate hasCitingEntity and hasCitedEntity, and returns a list of Citation objects.
