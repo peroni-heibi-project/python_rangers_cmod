@@ -522,14 +522,14 @@ class BasicQueryEngine():
         i = row["id"].split("; ") #separates the different ids
 
         bib_en = BibliographicEntity() #constructs the BE class
-        if type(row["title"]) == str: 
+        if row["title"] and type(row["title"]) == str: 
             bib_en.title += row["title"]
-        if type(row["author"]) == str: 
+        if row["title"] and type(row["author"]) == str: 
             bib_en.author.extend(auth)
         bib_en.id.extend(i)
-        if type(row["pub_date"]) == str: 
+        if row["title"] and type(row["pub_date"]) == str: 
             bib_en.publication_date += row["pub_date"]
-        if type(row["venue"]) == str: 
+        if row["title"] and type(row["venue"]) == str: 
             bib_en.venue += row["venue"]
 
         return bib_en
@@ -545,14 +545,14 @@ class BasicQueryEngine():
             auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
             i_citing = row["id_citing"].split("; ")
 
-            if type(row["title_citing"]) == str: # check to see if the BE dataframe is present, if not the BE instance is created just with the id
+            if row["title_citing"] and type(row["title_citing"]) == str: # check to see if the BE dataframe is present, if not the BE instance is created just with the id
                 citing.title += row["title_citing"]
-            if type(row["author_citing"]) == str:
+            if row["author_citing"] and type(row["author_citing"]) == str:
                 citing.author.extend(auth_citing)
             citing.id.extend(i_citing)
-            if type(row["pub_date_citing"]) == str:
+            if row["pub_date_citing"] and type(row["pub_date_citing"]) == str:
                 citing.publication_date += row["pub_date_citing"]
-            if type(row["venue_citing"]) == str:
+            if row["venue_citing"] and type(row["venue_citing"]) == str:
                 citing.venue += row["venue_citing"]
         else:
             citing.id.extend([row["citing"]])
@@ -562,14 +562,14 @@ class BasicQueryEngine():
             auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
             i_cited = row["id_cited"].split("; ")
 
-            if type(row["title_cited"]) == str:
+            if row["title_cited"] and type(row["title_cited"]) == str:
                 cited.title += row["title_cited"]
-            if type(row["author_cited"]) == str:
+            if row["author_cited"] and type(row["author_cited"]) == str:
                 cited.author.extend(auth_cited)
             cited.id.extend(i_cited)
-            if type(row["pub_date_cited"]) == str:
+            if row["pub_date_cited"] and type(row["pub_date_cited"]) == str:
                 cited.publication_date += row["pub_date_cited"]
-            if type(row["venue_cited"]) == str:
+            if row["venue_cited"] and type(row["venue_cited"]) == str:
                 cited.venue += row["venue_cited"]
         else:
             cited.id.extend([row["cited"]])
@@ -613,14 +613,7 @@ class BasicQueryEngine():
 
                     for idx, row_ci in full_df.iterrows():
                         if id in row_ci["oci"]: # finds the row with the right id
-                            id_class = Citation
-                            if type(row_ci["id_citing"]) == str: # check in case bibliographicEntityQuery a/o the BE dataframe is empty
-                                for author in row_ci["author_citing"].split("; "):
-                                    if author in row_ci["author_cited"].split("; "):
-                                        id_class = AuthorSelfCitation
-                                if row_ci["venue_citing"] == row_ci["venue_cited"]:
-                                    id_class = JournalSelfCitation
-                            return self.constructCitation(row_ci, id_class) # constructs the right Citation subclass if it is one
+                            return self.constructCitation(row_ci, id_class) # constructs the Citation instance
         return None
         
     def getAllCitations(self) -> list: # The method retrieves all citations from Blazegraph, merges them with bibliographic entity data from SQLite to populate hasCitingEntity and hasCitedEntity, and returns a list of Citation objects.
