@@ -553,6 +553,44 @@ class BasicQueryEngine():
         if row["cited"]: cit.hasCitedEntity = cited
         
         return cit
+
+    def getEntityById(self, id:str):
+        if id:
+
+            be_qhandler = self.bibliographicEntityQuery #the BEQH list is initiated by default, since both constructors make use of the BE dataframe
+            df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"]) #an empty dataframe is created, only having the column names
+
+            flag = False
+            for item in be_qhandler:
+                    merge_be = concat([df_be, item.getAllBibliographicEntities()]) #the dataframes of the different BEQHs are merged into one
+                    if not item.getById(id).empty:
+                        flag = True
+
+            if flag:
+                for idx, row in merge_be.iterrows():
+                        if id in row["id"]: #find the row with the right id
+                            return self.constructBibliographicEntity(row)
+                        
+            else:
+                ci_qhandler = self.citationQuery #the CQH and its functions are called only when we know it's not the id of a BE, so to avoid
+                                                    #connecting to the graph unless necessary, since the process takes quite some time
+                df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+                for item in ci_qhandler:
+                    merge_cit = concat([df_ci, item.getAllCitations()]) #the dataframes of the different CQHs are merged into one
+
+                if not merge_cit.empty:
+                    full_df = self.setFullDataFrame(merge_be, merge_cit) #the BE and Citation dataframes are merged in a way that facilitates the creation of hasCitingEntity and hasCitedEntity
+
+                    for idx, row_ci in full_df.iterrows():
+                        if id in row_ci["oci"]: #find the row with the right id
+                            id_class = Citation
+                            if row_ci["author_citing"] == row_ci["author_cited"]:
+                                id_class = AuthorSelfCitation
+                            elif row_ci["venue_citing"] == row_ci["venue_cited"]:
+                                id_class = JournalSelfCitation
+                            return self.constructCitation(row_ci, id_class)
+                    #Alice - adjusted row and turned it into row_ci everytime it was called out, because of typos
+        return None
         
     def getAllCitations(self) -> list:
         result = list()
