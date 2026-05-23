@@ -534,12 +534,12 @@ class BasicQueryEngine():
         bib_en = BibliographicEntity() #constructs the BE class
         if row["title"] and type(row["title"]) == str: 
             bib_en.title += row["title"]
-        if row["title"] and type(row["author"]) == str: 
+        if row["author"] and type(row["author"]) == str: 
             bib_en.author.extend(auth)
         bib_en.id.extend(i)
-        if row["title"] and type(row["pub_date"]) == str: 
+        if row["pub_date"] and type(row["pub_date"]) == str: 
             bib_en.publication_date += row["pub_date"]
-        if row["title"] and type(row["venue"]) == str: 
+        if row["venue"] and type(row["venue"]) == str: 
             bib_en.venue += row["venue"]
 
         return bib_en
