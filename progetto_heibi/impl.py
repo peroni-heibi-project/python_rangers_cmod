@@ -201,8 +201,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
 
     def getBibliographicEntitiesWithAuthor(self, name) -> DataFrame:
         # The % on both sides of the value enables the specification
-        # of the title as a substring, so partial queries like "Machine"
-        # also return "Machine learning in DH"
+        # of the Author as a substring
 
         with connect(self.dbPathOrUrl) as con:
             query = """
