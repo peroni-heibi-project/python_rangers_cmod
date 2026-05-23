@@ -589,20 +589,16 @@ class BasicQueryEngine():
 
     def getAllCitations(self) -> list:
         result = list()
-
-        if self.bibliographicEntityQuery:
-
+        
             be_qhandler = self.bibliographicEntityQuery
             df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
             for item in be_qhandler:
                 merge_be = concat([df_be, item.getAllBibliographicEntities()])
-            
-        if self.citationQuery:
 
             ci_qhandler = self.citationQuery
             df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
             for item in ci_qhandler:
-                merge_ci = concat([df_ci, item.getAllCitations()]) #selects the all of the Citation elements using a CQH method
+                merge_ci = concat([df_ci, item.getAllCitations()]) #selects all of the Citation elements using a CQH method
 
             final_df = self.setFullDataFrame(merge_be, merge_ci)
 
