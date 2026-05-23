@@ -147,7 +147,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
                 FROM BibliographicEntity 
                 WHERE ',' || id || ',' LIKE '%,' || ? || ',%'
             """
-            df = read_sql(query, con, params=("%" + id + "%",))  
+            df = read_sql(query, con, params=("id",))  
         return df
 
 
