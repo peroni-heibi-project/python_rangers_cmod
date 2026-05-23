@@ -143,9 +143,9 @@ class BibliographicEntityQueryHandler(QueryHandler):
         #where it is present.
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT DISTINCT be.internalId, be.title, be.pub_date, be.id
-                FROM BibliographicEntity AS be
-                WHERE ',' || be.id || ',' LIKE '%,' || ? || ',%'
+                SELECT DISTINCT internalId, title, pub_date, id
+                FROM BibliographicEntity 
+                WHERE ',' || id || ',' LIKE '%,' || ? || ',%'
             """
             df = read_sql(query, con, params=("%" + id + "%",))  
         return df
