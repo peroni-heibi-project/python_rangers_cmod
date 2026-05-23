@@ -513,33 +513,31 @@ class BasicQueryEngine():
         #the hasCitingEntity and hasCitedEntity parameters are created before the Citation class, and
         #constructBibliographicEntity cannot be called for them due to the column names being different
         
-        if row["citing"]:
-                if row["id_citing"]:
-                    auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
-                    i_citing = row["id_citing"].split("; ")
+        if row["id_citing"]:
+            auth_citing = row["author_citing"].split("; ") if row["author_citing"] else None
+            i_citing = row["id_citing"].split("; ")
 
-                    citing = BibliographicEntity()
-                    if row["title_citing"]: citing.title += row["title_citing"]
-                    if row["author_citing"]: citing.author.extend(auth_citing)
-                    citing.id.extend(i_citing)
-                    if row["pub_date_citing"]: citing.publication_date += row["pub_date_citing"]
-                    if row["venue_citing"]: citing.venue += row["venue_citing"]
-                else:
-                    citing = row["citing"]
+            citing = BibliographicEntity()
+            if row["title_citing"]: citing.title += row["title_citing"]
+            if row["author_citing"]: citing.author.extend(auth_citing)
+            citing.id.extend(i_citing)
+            if row["pub_date_citing"]: citing.publication_date += row["pub_date_citing"]
+            if row["venue_citing"]: citing.venue += row["venue_citing"]
+        else:
+            citing = row["citing"]
         
-        if row["cited"]:
-                if row["id_cited"]:
-                    auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
-                    i_cited = row["id_cited"].split("; ")
+        if row["id_cited"]:
+            auth_cited = row["author_cited"].split("; ") if row["author_cited"] else None
+            i_cited = row["id_cited"].split("; ")
 
-                    cited = BibliographicEntity()
-                    if row["title_cited"]: cited.title += row["title_cited"]
-                    if row["author_cited"]: cited.author.extend(auth_cited)
-                    cited.id.extend(i_cited)
-                    if row["pub_date_cited"]: cited.publication_date += row["pub_date_cited"]
-                    if row["venue_cited"]: cited.venue += row["venue_cited"]
-                else:
-                    cited = row["cited"]
+            cited = BibliographicEntity()
+            if row["title_cited"]: cited.title += row["title_cited"]
+            if row["author_cited"]: cited.author.extend(auth_cited)
+            cited.id.extend(i_cited)
+            if row["pub_date_cited"]: cited.publication_date += row["pub_date_cited"]
+            if row["venue_cited"]: cited.venue += row["venue_cited"]
+        else:
+            cited = row["cited"]
         
         cit = class_to_construct()
         if row["oci"]: cit.id.extend([row["oci"]])
