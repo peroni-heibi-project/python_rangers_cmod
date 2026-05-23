@@ -589,21 +589,20 @@ class BasicQueryEngine():
 
     def getAllCitations(self) -> list:
         result = list()
-        
-            be_qhandler = self.bibliographicEntityQuery
-            df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
-            for item in be_qhandler:
-                merge_be = concat([df_be, item.getAllBibliographicEntities()])
+        be_qhandler = self.bibliographicEntityQuery
+        df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        for item in be_qhandler:
+            merge_be = concat([df_be, item.getAllBibliographicEntities()])
 
-            ci_qhandler = self.citationQuery
-            df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
-            for item in ci_qhandler:
-                merge_ci = concat([df_ci, item.getAllCitations()]) #selects all of the Citation elements using a CQH method
+        ci_qhandler = self.citationQuery
+        df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
+        for item in ci_qhandler:
+            merge_ci = concat([df_ci, item.getAllCitations()]) #selects all of the Citation elements using a CQH method
 
-            final_df = self.setFullDataFrame(merge_be, merge_ci)
+        final_df = self.setFullDataFrame(merge_be, merge_ci)
 
-            for idx, row in final_df.iterrows():
-                    result.append(self.constructCitation(row))
+        for idx, row in final_df.iterrows():
+                result.append(self.constructCitation(row))
         return result
 
     def getAllAuthorSelfCitations(self) -> list:
