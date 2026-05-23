@@ -194,10 +194,10 @@ class BibliographicEntityQueryHandler(QueryHandler):
         # Clausola WHERE costruita dinamicamente: start e end sono opzionali
         conditions = list()
         params     = list()
-        if start is not None:
+        if start is not None and len(start) > 0:
             conditions.append("pub_date >= ?")
             params.append(start)
-        if end is not None:
+        if end is not None and len(end) > 0:
             conditions.append("pub_date <= ?")
             params.append(end)
         where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
