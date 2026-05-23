@@ -78,7 +78,10 @@ class CitationUploadHandler(UploadHandler):
                 sparql.query()
             return True
         return False
-    
+
+# BibliographicEntityUploadHandler is responsible for loading bibliographic entity data
+# from the dh_metadata.json file onto the SQLite database.
+# Each record in the JSON becomes one row in the BibliographicEntity table    
 class BibliographicEntityUploadHandler(UploadHandler):
 
     def __init__(self):
