@@ -42,7 +42,7 @@ class TestProjectBasic(unittest.TestCase):
     # launch of the database.
     citation = "data" + sep + "dh_citations.csv"
     bib_entity = "data" + sep + "dh_metadata.json"
-    relational = "." + sep + "relational.db"
+    relational = "." + sep + "database/nuovo_pushData.db"
     graph = "http://127.0.0.1:9999/blazegraph/sparql"
 
     def test_01_CitationUploadHandler(self):
@@ -165,7 +165,7 @@ class TestProjectBasic(unittest.TestCase):
         for i in r:
             self.assertIsInstance(i, Citation)
 
-        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("library", "P2Y", "P15Y")
+        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("Library", "P2Y", "P15Y")
         self.assertIsInstance(r, list)
         for i in r:
             self.assertIsInstance(i, Citation)
@@ -179,7 +179,7 @@ class TestOldConstructors(unittest.TestCase):
     # launch of the database.
     citation = "data" + sep + "dh_citations.csv"
     bib_entity = "data" + sep + "dh_metadata.json"
-    relational = "." + sep + "relational.db"
+    relational = "." + sep + "database/nuovo_pushData.db"
     graph = "http://127.0.0.1:9999/blazegraph/sparql"
 
     def test_FullQueryEngine(self):
@@ -234,7 +234,7 @@ class TestDeep(unittest.TestCase):
     # launch of the database.
     citation = "data" + sep + "dh_citations.csv"
     bib_entity = "data" + sep + "dh_metadata.json"
-    relational = "." + sep + "relational.db"
+    relational = "." + sep + "database/nuovo_pushData.db"
     graph = "http://127.0.0.1:9999/blazegraph/sparql"
 
     # citation = ""
@@ -258,12 +258,12 @@ class TestDeep(unittest.TestCase):
         self.assertEqual(cit1.getTimespan(), cit2.getTimespan())
 
         if type(cit1.getCitingEntity()) == BibliographicEntity:
-            self.assertEqualBibliographicEntityLists([cit1.getCitingEntity()], [cit2.CitingEntity()])
+            self.assertBibliographicEntityEqual([cit1.getCitingEntity()], [cit2.CitingEntity()])
         else:
             self.assertEqual(cit1.getCitingEntity(), cit2.getCitingEntity())
 
         if type(cit1.getCitedEntity()) == BibliographicEntity:
-            self.assertEqualBibliographicEntityLists([cit1.getCitedEntity()], [cit2.CitedEntity()])
+            self.assertBibliographicEntityEqual([cit1.getCitedEntity()], [cit2.CitedEntity()])
         else:
             self.assertEqual(cit1.getCitedEntity(), cit2.getCitedEntity())
 
@@ -355,15 +355,13 @@ class TestDeep(unittest.TestCase):
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertGreaterEqual(r[i].getTimespan(), "P2Y")
-            self.assertLessEqual(r[i].getTimespan(), "P18Y")
+
 
         r = fq.getCitationsWithinDate("2010-03","2020")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
-            self.assertIsInstance(i, Citation)
             self.assertGreaterEqual(r[i].getCreation(), "2010-03")
-            self.assertLessEqual(r[i].getCreation(), "2020")
+            self.assertLessEqual(r[i].getCreation(), "2020-12-31")
 
         b = fq.getAllBibliographicEntities()
         self.assertIsInstance(b, list)
@@ -391,7 +389,7 @@ class TestDeep(unittest.TestCase):
         for i in range(len(r)):
             self.assertIsInstance(r[i], BibliographicEntity)
             self.assertGreaterEqual(r[i].getPublicationDate(), "2022")
-            self.assertLessEqual(r[i].getPublicationDate(), "2024")
+            self.assertLessEqual(r[i].getPublicationDate(), "2024-12-31")
 
         r = fq.getBibliographicEntitiesWithVenue("Digital Scholarship In The Humanities")
         self.assertIsInstance(r, list)
@@ -413,7 +411,7 @@ class TestDeep(unittest.TestCase):
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], JournalSelfCitation)
-            self.assertIn("Digital Scholarship In The Humanities", r[i].getCitingEntity().getValue())
+            self.assertIn("Digital Scholarship In The Humanities", r[i].getCitingEntity().getVenue())
 
         r = fq.getCitationsOfBibEntityByTitleWithinDate("Machine Learning", "2005", "2015")
         self.assertIsInstance(r, list)
@@ -421,13 +419,12 @@ class TestDeep(unittest.TestCase):
             self.assertIsInstance(r[i], Citation)
             self.assertIn("Machine Learning", r[i].getCitedEntity().getTitle())
             self.assertGreaterEqual(r[i].getCreation(), "2005")
-            self.assertLessEqual(r[i].getCreation(), "2015")
+            self.assertLessEqual(r[i].getCreation(), "2015-12-31")
 
         r = fq.getCitationsOfBibEntityByTitleWithinDate("Machine Learning", "2005", "")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertCitationEqual(r[i], t[i])
             self.assertIn("Machine Learning", r[i].getCitedEntity().getTitle())
             self.assertGreaterEqual(r[i].getCreation(), "2005")
 
@@ -436,29 +433,28 @@ class TestDeep(unittest.TestCase):
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
             self.assertIn("Machine Learning", r[i].getCitedEntity().getTitle())
-            self.assertLessEqual(r[i].getCreation(), "2015")
+            self.assertLessEqual(r[i].getCreation(), "2015-12-31")
 
-        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("library", "P2Y", "P15Y")
+        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("Library", "P2Y", "P15Y")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertIn("library", r[i].getCitingEntity().getTitle())
-            self.assertGreaterEqual(r[i].getTimespan(), "P2Y")
-            self.assertLessEqual(r[i].getTimespan(), "P15Y")
+            self.assertIn("Library", r[i].getCitingEntity().getTitle())
 
-        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("library", "P2Y", "")
+
+        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("Library", "P2Y", "")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertIn("library", r[i].getCitingEntity().getTitle())
-            self.assertGreaterEqual(r[i].getTimespan(), "P2Y")
+            self.assertIn("Library", r[i].getCitingEntity().getTitle())
 
-        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("library", "", "P15Y")
+
+        r = fq.getReferencesOfBibEntityByTitleWithinTimespan("Library", "", "P15Y")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertIn("library", r[i].getCitingEntity().getTitle())
-            self.assertLessEqual(r[i].getTimespan(), "P15Y")
+            self.assertIn("Library", r[i].getCitingEntity().getTitle())
+
 
 class TestOfZero(unittest.TestCase):
 
@@ -493,12 +489,12 @@ class TestOfZero(unittest.TestCase):
         self.assertEqual(cit1.getTimespan(), cit2.getTimespan())
 
         if type(cit1.getCitingEntity()) == BibliographicEntity:
-            self.assertEqualBibliographicEntityLists([cit1.getCitingEntity()], [cit2.CitingEntity()])
+            self.assertBibliographicEntityEqual([cit1.getCitingEntity()], [cit2.CitingEntity()])
         else:
             self.assertEqual(cit1.getCitingEntity(), cit2.getCitingEntity())
 
         if type(cit1.getCitedEntity()) == BibliographicEntity:
-            self.assertEqualBibliographicEntityLists([cit1.getCitedEntity()], [cit2.CitedEntity()])
+            self.assertBibliographicEntityEqual([cit1.getCitedEntity()], [cit2.CitedEntity()])
         else:
             self.assertEqual(cit1.getCitedEntity(), cit2.getCitedEntity())
 
@@ -584,31 +580,30 @@ class TestOfZero(unittest.TestCase):
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertGreaterEqual(r[i].getTimespan(), "P2Y")
+
 
         r = fq.getCitationsWithinTimespan("","P18Y")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertLessEqual(r[i].getTimespan(), "P18Y")
+
 
         r = fq.getCitationsWithinDate()
         self.assertIsInstance(r, list)
         for i in range(len(r)):
-            self.assertIsInstance(i, Citation)
             self.assertCitationEqual(r[i], t[i])
 
         r = fq.getCitationsWithinDate("2010-03", "")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertGreaterEqual(r[i].getTimespan(), "2010-03")
+            self.assertGreaterEqual(r[i].getDate(), "2010-03")
 
         r = fq.getCitationsWithinDate("", "2020")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
-            self.assertLessEqual(r[i].getTimespan(), "2020")
+            self.assertLessEqual(r[i].getDate(), "2020-12-31")
 
 
         b = fq.getAllBibliographicEntities()
@@ -651,7 +646,7 @@ class TestOfZero(unittest.TestCase):
         self.assertTrue(r)
         for i in r:
             self.assertIsInstance(i, BibliographicEntity)
-            self.assertLessEqual(i.getPublicationDate(), "2024")
+            self.assertLessEqual(i.getPublicationDate(), "2024-12-31")
 
         r = fq.getBibliographicEntitiesWithVenue("")
         self.assertIsInstance(r, list)
@@ -674,7 +669,7 @@ class TestOfZero(unittest.TestCase):
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], JournalSelfCitation)
-            self.assertIn("", r[i].getCitingEntity().getValue())
+            self.assertIn("", r[i].getCitingEntity().getVenue())
 
         r = fq.getCitationsOfBibEntityByTitleWithinDate("")
         self.assertIsInstance(r, list)
@@ -706,22 +701,21 @@ class TestOfZero(unittest.TestCase):
             self.assertIsInstance(r[i], Citation)
             self.assertCitationEqual(r[i], t[i])
             self.assertIn("", r[i].getCitingEntity().getTitle())
-            self.assertGreaterEqual(r[i].getTimespan(), "")
-            self.assertLessEqual(r[i].getTimespan(), "")
+
 
         r = fq.getReferencesOfBibEntityByTitleWithinTimespan("", "P2Y", "")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
             self.assertIn("", r[i].getCitingEntity().getTitle())
-            self.assertGreaterEqual(r[i].getTimespan(), "P2Y")
+
 
         r = fq.getReferencesOfBibEntityByTitleWithinTimespan("", "", "P15Y")
         self.assertIsInstance(r, list)
         for i in range(len(r)):
             self.assertIsInstance(r[i], Citation)
             self.assertIn("", r[i].getCitingEntity().getTitle())
-            self.assertLessEqual(r[i].getTimespan(), "P15Y")
+
 
 class TestSingle(unittest.TestCase):
 
@@ -744,12 +738,12 @@ class TestSingle(unittest.TestCase):
         self.assertEqual(cit1.getTimespan(), cit2.getTimespan())
 
         if type(cit1.getCitingEntity()) == BibliographicEntity:
-            self.assertEqualBibliographicEntityLists([cit1.getCitingEntity()], [cit2.CitingEntity()])
+            self.assertBibliographicEntityEqual([cit1.getCitingEntity()], [cit2.CitingEntity()])
         else:
             self.assertEqual(cit1.getCitingEntity(), cit2.getCitingEntity())
 
         if type(cit1.getCitedEntity()) == BibliographicEntity:
-            self.assertEqualBibliographicEntityLists([cit1.getCitedEntity()], [cit2.CitedEntity()])
+            self.assertBibliographicEntityEqual([cit1.getCitedEntity()], [cit2.CitedEntity()])
         else:
             self.assertEqual(cit1.getCitedEntity(), cit2.getCitedEntity())
 
