@@ -811,16 +811,39 @@ class FullQueryEngine(BasicQueryEngine):
     def getCitationsOfBibEntityByTitleWithinDate(self, bib_entity_title:str, min_date:str = "", max_date:str = "") -> list:
         result = list()
         be_qhandler = self.bibliographicEntityQuery
-        df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        df_be_citing = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        df_be_cited = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
         for item in be_qhandler:
-            merge_be = concat([df_be, item.getBibliographicEntitiesWithTitle(bib_entity_title)]) #selects only the BibliographicEntities with the desired venue
+            merge_be_citing = concat([df_be_citing, item.getAllBibliographicEntities()])
+            merge_be_cited = concat([df_be_cited, item.getBibliographicEntitiesWithTitle(bib_entity_title)]) #only the CitedEntity's title needs to be filtered
 
         ci_qhandler = self.citationQuery
         df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
         for item in ci_qhandler:
-            merge_cit = concat([df_ci, item.getCitationsWithinDate(min_date, max_date)]) #selects only JournalSelfCitations
+            merge_cit = concat([df_ci, item.getCitationsWithinDate(min_date, max_date)])
 
-        full_df = self.setFullDataFrame(merge_be, merge_cit)
+        #the merge here is different compared to the usual one, since the citing and cited tables need to be different, so it needs to be manually written
+
+        prefix = "https://opencitations.net/entity/"
+        merge_be_citing["internalId"] = merge_be_citing["internalId"].apply(lambda x: prefix + x)
+        merge_be_cited["internalId"] = merge_be_cited["internalId"].apply(lambda x: prefix + x)
+        full_df = merge_cit
+        
+        citing_df = merge_be_citing.rename(columns={"title":"title_citing",
+                                           "author":"author_citing",
+                                           "pub_date":"pub_date_citing",
+                                           "venue":"venue_citing",
+                                           "id":"id_citing"})
+        
+        full_df = merge(full_df, citing_df, left_on="citing", right_on="internalId", how="inner") 
+
+        cited_df = merge_be_cited.rename(columns={"title":"title_cited",
+                                          "author":"author_cited",
+                                          "pub_date":"pub_date_cited",
+                                          "venue":"venue_cited",
+                                          "id":"id_cited"})
+        
+        full_df = merge(full_df, cited_df, left_on="cited", right_on="internalId", how="inner") 
 
         for idx, row in full_df.iterrows():
             result.append(self.constructCitation(row))
@@ -829,17 +852,41 @@ class FullQueryEngine(BasicQueryEngine):
     def getReferencesOfBibEntityByTitleWithinTimespan(self, bib_entity_title:str, min_timespan:str = "", max_timespan:str = "") -> list:
         result = list()
         be_qhandler = self.bibliographicEntityQuery
-        df_be = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        df_be_citing = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
+        df_be_cited = DataFrame(columns=["internalId", "title", "author", "pub_date", "venue", "id"])
         for item in be_qhandler:
-            merge_be = concat([df_be, item.getBibliographicEntitiesWithVenue(bib_entity_title)]) #selects only the BibliographicEntities with the desired venue
+            merge_be_citing = concat([df_be_citing, item.getBibliographicEntitiesWithTitle(bib_entity_title)]) #only the CitingEntity's title needs to be filtered
+            merge_be_cited = concat([df_be_cited, item.getAllBibliographicEntities()]) 
 
         ci_qhandler = self.citationQuery
         df_ci = DataFrame(columns=["oci", "creation", "citing", "cited", "timespan"])
         for item in ci_qhandler:
-            merge_cit = concat([df_ci, item.getCitationsWithinTimespan(min_timespan, max_timespan)]) #selects only JournalSelfCitations
+            merge_cit = concat([df_ci, item.getCitationsWithinTimespan(min_timespan, max_timespan)])
 
-        full_df = self.setFullDataFrame(merge_be, merge_cit)
+        #the merge here is different compared to the usual one, since the citing and cited tables need to be different, so it needs to be manually written
+
+        prefix = "https://opencitations.net/entity/"
+        merge_be_citing["internalId"] = merge_be_citing["internalId"].apply(lambda x: prefix + x)
+        merge_be_cited["internalId"] = merge_be_cited["internalId"].apply(lambda x: prefix + x)
+        full_df = merge_cit
+        
+        citing_df = merge_be_citing.rename(columns={"title":"title_citing",
+                                           "author":"author_citing",
+                                           "pub_date":"pub_date_citing",
+                                           "venue":"venue_citing",
+                                           "id":"id_citing"})
+        
+        full_df = merge(full_df, citing_df, left_on="citing", right_on="internalId", how="inner") 
+        
+        cited_df = merge_be_cited.rename(columns={"title":"title_cited",
+                                          "author":"author_cited",
+                                          "pub_date":"pub_date_cited",
+                                          "venue":"venue_cited",
+                                          "id":"id_cited"})
+        
+        full_df = merge(full_df, cited_df, left_on="cited", right_on="internalId", how="inner") 
 
         for idx, row in full_df.iterrows():
             result.append(self.constructCitation(row))
         return result
+
