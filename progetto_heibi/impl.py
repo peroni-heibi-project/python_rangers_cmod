@@ -139,12 +139,13 @@ class BibliographicEntityQueryHandler(QueryHandler):
         super().__init__()
         
     def getById(self, id) -> DataFrame:
+        #the query basically adds commas when they are not already present, in order to select the id 
+        #if it is contained in the list.
         with connect(self.dbPathOrUrl) as con:
             query = """
-                SELECT DISTINCT be.internalId, be.title, be.pub_date,
-                    be.id
+                SELECT DISTINCT be.internalId, be.title, be.pub_date, be.id
                 FROM BibliographicEntity AS be
-                WHERE be.id LIKE ?
+                WHERE INSTR(',' || be.id || ',' , ',' || ? || ',') > 0
             """
             df = read_sql(query, con, params=("%" + id + "%",))  
         return df
