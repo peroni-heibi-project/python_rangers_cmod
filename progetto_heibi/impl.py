@@ -86,20 +86,33 @@ class BibliographicEntityUploadHandler(UploadHandler):
 
     def pushDataToDb(self, path:str) -> bool:
         if type(path) == str:
+            # The JSON file is opened and parsed into a list, where each element is a dictionary representing one bibliographic record
             with open(path, "r", encoding="utf-8") as f:
                 data = load(f)   # lista di dizionari
-                
+            
+            # A list is used to collect one dictionary per record before converting to a DataFrame 
             rows_entity    = list()
             for dic in data:
+                # Records with no id are skipped since without an internalId, the entity cannot be identified or linked in the database
                 if dic["id"]:
                     internal_id = ""
+                    # The method .get() with "" as default value avoids a KeyError, if the key is missing from the dictionary
                     title    = dic.get("title", "") 
                     pub_date = dic.get("pub_date", "") 
+                    # The OMID is used as internalId since it matches the format
+                    # used in the "citing" and "cited" columns of the CSV,
+                    # making the merge between the two DataFrames possible in the BasicQueryEngine
                     for item in dic["id"]:
                         if "omid" in item:
                             internal_id += item
+                    # All ids are joined into a single string separated by "; "
+                    # so they fit in one column and can be recovered later as a list
                     entity_id = "; ".join(dic["id"])
+                    # The same approach is used for authors: stored as a single string
+                    # so that each bibliographic entity corresponds to one row in the table
                     author ="; ".join(dic["author"]) if len(dic["author"]) > 0 else ""
+                    # venue can be None in the JSON, so it defaults to ""
+                    # to avoid inserting None values into the database
                     venue = dic["venue"] if dic["venue"] else ""
                     
                     rows_entity.append({
@@ -112,7 +125,10 @@ class BibliographicEntityUploadHandler(UploadHandler):
                 })
 
             df = DataFrame(rows_entity)
-
+            # The parameter if_exists is set to "append" instead of "replace"
+            # so that pushDataToDb can be called multiple times without losing existing data.
+            # The parameter index is set to False so that the DataFrame index
+            # is not added to the database table
             with connect(self.dbPathOrUrl) as con:
                 df.to_sql("BibliographicEntity", con,
                                     if_exists="append", index=False)
@@ -132,11 +148,7 @@ class QueryHandler(Handler):
 
 
 class BibliographicEntityQueryHandler(QueryHandler):
-    """
-    Legge dal database SQLite e restituisce DataFrame pandas.
-    Ogni metodo costruisce una query SQL ed esegue read_sql(), come mostrato
-    dal professore nel capitolo "Interacting with databases using Pandas".
-    """
+    #Reads from the SQLite database and returns pandas DataFrames
 
     def __init__(self):
         super().__init__()
@@ -167,7 +179,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
         return df
 
     def getBibliographicEntitiesWithTitle(self, title) -> DataFrame:
-        # LIKE con % cerca la stringa come sottostringa del titolo
+        #% searches for the string as a substring of the title
         with connect(self.dbPathOrUrl) as con:
             query = """
                 SELECT DISTINCT
@@ -180,7 +192,10 @@ class BibliographicEntityQueryHandler(QueryHandler):
         return df
 
     def getBibliographicEntitiesWithAuthor(self, name) -> DataFrame:
-        # DISTINCT evita duplicati se il nome matcha sia givenName che familyName
+        # The % on both sides of the value enables the specification
+        # of the title as a substring, so partial queries like "Machine"
+        # also return "Machine learning in DH"
+
         with connect(self.dbPathOrUrl) as con:
             query = """
                 SELECT DISTINCT
@@ -194,7 +209,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
         return df
 
     def getBibliographicEntitiesWithinPublicationDate(self, start=None, end=None) -> DataFrame:
-        # Clausola WHERE costruita dinamicamente: start e end sono opzionali
+        
         conditions = list()
         params     = list()
         if start is not None and len(start) > 0:
@@ -203,6 +218,7 @@ class BibliographicEntityQueryHandler(QueryHandler):
         if end is not None and len(end) > 0:
             conditions.append("pub_date <= ?")
             params.append(end)
+        # If no conditions were added, where_clause stays empty and the query returns all rows
         where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         with connect(self.dbPathOrUrl) as con:
