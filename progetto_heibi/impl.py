@@ -536,7 +536,7 @@ class BasicQueryEngine():
             citing.id.extend(i_citing)
             if type(row["pub_date_citing"]) == str:
                 citing.publication_date += row["pub_date_citing"]
-            if type(row["venue_citing"]= == str:
+            if type(row["venue_citing"] == str:
                 citing.venue += row["venue_citing"]
         else:
             citing.id.extend([row["citing"]])
