@@ -92,7 +92,7 @@ class BibliographicEntityUploadHandler(UploadHandler):
         if type(path) == str:
             # The JSON file is opened and parsed into a list, where each element is a dictionary representing one bibliographic record
             with open(path, "r", encoding="utf-8") as f:
-                data = load(f)   # lista di dizionari
+                data = load(f)   # list of bibliographic records
             
             # A list is used to collect one dictionary per record before converting to a DataFrame 
             rows_entity    = list()
